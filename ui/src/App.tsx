@@ -40,7 +40,6 @@ export default function App() {
   useEffect(() => { refresh(); }, [refresh]);
   usePolling(refresh, POLL_MS);
 
-  // Health ping
   useEffect(() => {
     api.health()
       .then(() => setApiOk(true))
@@ -56,67 +55,66 @@ export default function App() {
   })();
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--bg)", color: "var(--text)" }}>
+    <div className="min-h-screen relative" style={{ background: "var(--bg)", color: "var(--text)" }}>
+      {/* ── Ambient Background Glow ── */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-[500px] opacity-20 pointer-events-none blur-[120px]" 
+           style={{ background: "radial-gradient(circle, var(--blue) 0%, transparent 60%)" }} />
 
-      {/* ── Top nav ── */}
-      <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-3"
-              style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-        <div className="flex items-center gap-2 font-semibold">
-          <KeyRound className="w-5 h-5" style={{ color: "var(--blue)" }} />
+      {/* ── Top nav (Frosted Glass) ── */}
+      <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 backdrop-blur-xl bg-black/40"
+              style={{ borderBottom: "1px solid var(--border)" }}>
+        <div className="flex items-center gap-3 font-bold tracking-wide text-lg drop-shadow-md">
+          <div className="p-2 rounded-lg" style={{ background: "rgba(59, 130, 246, 0.15)" }}>
+            <KeyRound className="w-5 h-5" style={{ color: "var(--blue)" }} />
+          </div>
           Secret Drift Detector
         </div>
 
-        <div className="flex items-center gap-3 text-sm">
-          {/* API health dot */}
-          <span className="flex items-center gap-1.5 text-xs" style={{ color: "var(--muted)" }}>
-            <span className="w-2 h-2 rounded-full inline-block"
-                  style={{ background: apiOk === null ? "var(--muted)" : apiOk ? "var(--ok)" : "var(--critical)" }} />
-            {apiOk === null ? "Checking…" : apiOk ? "API online" : "API offline"}
+        <div className="flex items-center gap-4 text-sm font-medium">
+          <span className="flex items-center gap-2 text-xs uppercase tracking-wider bg-black/30 px-3 py-1.5 rounded-full" 
+                style={{ color: "var(--muted)", border: "1px solid var(--border)" }}>
+            <span className={`w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] ${apiOk === null ? "bg-gray-500" : apiOk ? "bg-green-500" : "bg-red-500"}`} />
+            {apiOk === null ? "Checking" : apiOk ? "System Online" : "System Offline"}
           </span>
 
-          {lastRefresh && (
-            <span className="text-xs" style={{ color: "var(--muted)" }}>
-              Updated {lastRefresh.toLocaleTimeString()}
-            </span>
-          )}
-
           <button onClick={refresh}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-white/10"
-                  style={{ border: "1px solid var(--border)" }}>
-            <RefreshCw className="w-3.5 h-3.5" />
+                  className="group flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-white/10 active:scale-95"
+                  style={{ border: "1px solid var(--border)", background: "var(--surface)" }}>
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-blue-400' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
             Refresh
           </button>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+      <main className="max-w-6xl mx-auto px-4 py-10 space-y-10 relative z-10">
 
         {/* ── Error banner ── */}
         {error && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm"
-               style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#fca5a5" }}>
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            {error}
+          <div className="flex items-center gap-3 px-5 py-4 rounded-xl text-sm font-medium animate-in slide-in-from-top-4"
+               style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", color: "#fca5a5" }}>
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <div className="flex-1">
+              <span className="text-white block font-bold mb-0.5">Connection Error</span>
+              {error}
+            </div>
           </div>
         )}
 
         {/* ── Stat cards ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
           <StatCard
             label="Current Status"
             value={latest?.has_drift ? "Drifting" : "Secure"}
             sub={latest ? `Last check: Run #${latest.id}` : "No data yet"}
             accent={latest?.has_drift ? "var(--critical)" : "var(--ok)"}
-            icon={latest?.has_drift
-              ? <ShieldAlert className="w-5 h-5" />
-              : <ShieldCheck className="w-5 h-5" />}
+            icon={latest?.has_drift ? <ShieldAlert className="w-6 h-6" /> : <ShieldCheck className="w-6 h-6" />}
           />
           <StatCard
             label="Expected Secrets"
             value={latest?.expected_count ?? "—"}
             sub="from configured sources"
             accent="var(--blue)"
-            icon={<Activity className="w-5 h-5" />}
+            icon={<Activity className="w-6 h-6" />}
           />
           <StatCard
             label="Drift Runs"
@@ -133,54 +131,53 @@ export default function App() {
         </div>
 
         {/* ── Trend chart ── */}
-        <section className="rounded-xl p-5 space-y-4"
+        <section className="rounded-2xl p-6 space-y-4 shadow-xl transition-all duration-300 hover:border-blue-500/30"
                  style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <h2 className="text-sm font-semibold uppercase tracking-widest"
+          <h2 className="text-xs font-bold uppercase tracking-widest flex items-center gap-2"
               style={{ color: "var(--muted)" }}>
-            Drift Trend — last {trend.length} runs
+            <Activity className="w-4 h-4" /> Drift Trend History
           </h2>
           {loading ? (
-            <div className="h-28 flex items-center justify-center text-sm" style={{ color: "var(--muted)" }}>
-              Loading…
+            <div className="h-40 flex items-center justify-center text-sm animate-pulse" style={{ color: "var(--muted)" }}>
+              Analyzing trend data...
             </div>
           ) : (
-            <TrendChart data={trend} />
+            <div className="h-40 mt-4">
+               <TrendChart data={trend} />
+            </div>
           )}
         </section>
 
         {/* ── Run list ── */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-widest"
-                style={{ color: "var(--muted)" }}>
+        <section className="space-y-4 pt-4">
+          <div className="flex items-center justify-between pb-2 border-b border-white/5">
+            <h2 className="text-xl font-bold tracking-tight" style={{ color: "var(--text)" }}>
               Recent Scans
             </h2>
             <button
               onClick={() => setOnlyDrift(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300"
               style={{
-                border: "1px solid var(--border)",
-                background: onlyDrift ? "rgba(239,68,68,0.15)" : "transparent",
-                color: onlyDrift ? "#fca5a5" : "var(--muted)",
+                border: "1px solid",
+                borderColor: onlyDrift ? "rgba(239,68,68,0.5)" : "var(--border)",
+                background: onlyDrift ? "rgba(239,68,68,0.1)" : "var(--surface)",
+                color: onlyDrift ? "#fca5a5" : "var(--text)",
+                boxShadow: onlyDrift ? "0 0 15px rgba(239,68,68,0.15)" : "none"
               }}>
-              <Filter className="w-3.5 h-3.5" />
-              {onlyDrift ? "Showing drift only" : "Show drift only"}
+              <Filter className="w-4 h-4" />
+              {onlyDrift ? "Drift Only" : "All Runs"}
             </button>
           </div>
 
-          {loading && (
-            <div className="text-center py-12 text-sm" style={{ color: "var(--muted)" }}>
-              Loading runs…
-            </div>
-          )}
-
-          {!loading && runs.length === 0 && (
-            <div className="text-center py-12 text-sm" style={{ color: "var(--muted)" }}>
-              {onlyDrift ? "No drift runs found." : "No runs recorded yet. Start the agent to begin."}
-            </div>
-          )}
-
-          {runs.map(run => <RunRow key={run.id} run={run} />)}
+          <div className="flex flex-col gap-3">
+            {!loading && runs.length === 0 && (
+              <div className="text-center py-16 rounded-xl border border-dashed border-white/10" style={{ color: "var(--muted)" }}>
+                <ShieldCheck className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                {onlyDrift ? "No drift runs found. Great job!" : "No runs recorded yet. Start the agent to begin."}
+              </div>
+            )}
+            {runs.map(run => <RunRow key={run.id} run={run} />)}
+          </div>
         </section>
 
       </main>

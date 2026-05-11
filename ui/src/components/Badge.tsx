@@ -1,31 +1,31 @@
-﻿import type { Severity } from "../types";
+﻿export function SeverityBadge({ value }: { value: string }) {
+  const colors: Record<string, { bg: string, text: string, border: string, shadow: string }> = {
+    CRITICAL: { bg: "rgba(239, 68, 68, 0.15)", text: "#fca5a5", border: "rgba(239, 68, 68, 0.4)", shadow: "0 0 10px rgba(239, 68, 68, 0.2)" },
+    HIGH:     { bg: "rgba(249, 115, 22, 0.15)", text: "#fdba74", border: "rgba(249, 115, 22, 0.4)", shadow: "0 0 10px rgba(249, 115, 22, 0.2)" },
+    WARN:     { bg: "rgba(234, 179, 8, 0.15)", text: "#fde047", border: "rgba(234, 179, 8, 0.4)", shadow: "0 0 10px rgba(234, 179, 8, 0.2)" },
+    INFO:     { bg: "rgba(59, 130, 246, 0.15)", text: "#93c5fd", border: "rgba(59, 130, 246, 0.4)", shadow: "0 0 10px rgba(59, 130, 246, 0.2)" },
+  };
 
-const SEV: Record<Severity, string> = {
-  critical: "bg-red-500/15 text-red-400 border border-red-500/30",
-  high:     "bg-orange-500/15 text-orange-400 border border-orange-500/30",
-  warn:     "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30",
-  info:     "bg-slate-500/15 text-slate-400 border border-slate-500/30",
-};
+  const style = colors[value.toUpperCase()] || colors.INFO;
 
-const KIND: Record<string, string> = {
-  missing: "bg-red-500/10 text-red-300 border border-red-500/20",
-  extra:   "bg-blue-500/10 text-blue-300 border border-blue-500/20",
-  changed: "bg-orange-500/10 text-orange-300 border border-orange-500/20",
-  stale:   "bg-yellow-500/10 text-yellow-300 border border-yellow-500/20",
-};
-
-export function SeverityBadge({ value }: { value: Severity }) {
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ${SEV[value] ?? SEV.info}`}>
-      {value}
+    <span className="px-2.5 py-0.5 rounded-md text-xs font-bold tracking-wider backdrop-blur-sm transition-all duration-300"
+          style={{ background: style.bg, color: style.text, border: `1px solid ${style.border}`, boxShadow: style.shadow }}>
+      {value.toUpperCase()}
     </span>
   );
 }
 
 export function KindBadge({ value }: { value: string }) {
+  const isMissing = value.toLowerCase() === "missing";
   return (
-    <span className={`px-2 py-0.5 rounded-md text-xs font-mono ${KIND[value] ?? KIND.changed}`}>
-      {value}
+    <span className="px-2.5 py-0.5 rounded-md text-xs font-bold tracking-wider"
+          style={{ 
+            background: isMissing ? "rgba(168, 85, 247, 0.15)" : "rgba(14, 165, 233, 0.15)", 
+            color: isMissing ? "#d8b4fe" : "#7dd3fc", 
+            border: `1px solid ${isMissing ? "rgba(168, 85, 247, 0.4)" : "rgba(14, 165, 233, 0.4)"}` 
+          }}>
+      {value.toUpperCase()}
     </span>
   );
 }
