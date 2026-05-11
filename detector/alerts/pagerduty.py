@@ -1,39 +1,40 @@
 ﻿import aiohttp
-import os
 from detector.alerts import BaseAlerter
-from detector.diff.models import DriftReport, Severity
+from detector.diff.models import DriftReport
+
+_PD_URL = "https://events.pagerduty.com/v2/enqueue"
+
 
 class PagerDutyAlerter(BaseAlerter):
-    def __init__(self, integration_key: str, min_severity: str = 'critical'):
-        super().__init__(Severity(min_severity))
-        if integration_key.startswith('env:'):
-            self.integration_key = os.environ.get(integration_key[4:])
-        else:
-            self.integration_key = integration_key
+    def __init__(self, integration_key: str | None, min_severity: str = "critical"):
+        super().__init__(min_severity)
+        self.integration_key = integration_key
 
-    async def send_alert(self, report: DriftReport, source_name: str, target_name: str):
+    async def send_alert(self, report: DriftReport) -> None:
         if not self.integration_key or not report.has_drift:
             return
 
-        actionable_items = [i for i in report.items if self._should_alert(i.severity.value)]
-        if not actionable_items:
+        items = report.items_at_or_above(self.min_severity)
+        if not items:
             return
 
         payload = {
-            "routing_key": self.integration_key,
+            "routing_key":  self.integration_key,
             "event_action": "trigger",
             "payload": {
-                "summary": f"Secret Drift Detected in {target_name}",
+                "summary":  f"Secret Drift: {len(items)} item(s) in {', '.join(report.targets) or 'unknown'}",
                 "severity": "critical",
-                "source": target_name,
+                "source":   ", ".join(report.targets) or "secret-drift-detector",
+                "timestamp": report.checked_at.isoformat(),
                 "custom_details": {
-                    "source_configs": source_name,
-                    "drift_items": [i.model_dump() for i in actionable_items]
-                }
-            }
+                    "sources":     report.sources,
+                    "targets":     report.targets,
+                    "drift_items": [i.model_dump() for i in items],
+                },
+            },
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.post('https://events.pagerduty.com/v2/enqueue', json=payload) as resp:
+            async with session.post(_PD_URL, json=payload) as resp:
                 if resp.status >= 400:
-                    print(f"Failed to send PD alert: {await resp.text()}")
+                    print(f"[PagerDutyAlerter] HTTP {resp.status}: {await resp.text()}")

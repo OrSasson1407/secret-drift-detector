@@ -1,28 +1,97 @@
-﻿version: '3.8'
+﻿version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared environment variable defaults (override in .env or shell)
+# ─────────────────────────────────────────────────────────────────────────────
+x-detector-env: &detector-env
+  DETECTOR_CONFIG: /app/config/detector.toml
+  VAULT_TOKEN:     ${VAULT_TOKEN:-}
+  AWS_PROFILE:     ${AWS_PROFILE:-}
+  DOPPLER_TOKEN:   ${DOPPLER_TOKEN:-}
+  SLACK_DRIFT_WEBHOOK: ${SLACK_DRIFT_WEBHOOK:-}
+  PD_INTEGRATION_KEY:  ${PD_INTEGRATION_KEY:-}
 
 services:
-  detector:
-    build: .
-    container_name: secret_detector
-    ports:
-      - "8000:8000"
-    volumes:
-      # Mount the Docker socket so the agent can run 'docker exec' on other containers
-      - /var/run/docker.sock:/var/run/docker.sock
-      # Mount config and SQLite DB so history persists between container restarts
-      - ./config:/app/config
-      - ./drift_history.db:/app/drift_history.db
-      - ./.env.production:/app/.env.production
-    depends_on:
-      - dummy_app
 
-  # This simulates a production web app that the detector is monitoring
+  # ── API server ─────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      target:  runtime
+    image:     secret-drift-detector:latest
+    container_name: drift_api
+    restart:   unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      <<: *detector-env
+    volumes:
+      - ./config:/app/config:ro
+      - drift_db:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout:  5s
+      retries:  3
+      start_period: 10s
+    networks:
+      - drift_net
+
+  # ── Agent (watch mode) ─────────────────────────────────────────────────────
+  agent:
+    image:     secret-drift-detector:latest
+    container_name: drift_agent
+    restart:   unless-stopped
+    command:   ["detector", "watch", "--config", "/app/config/detector.toml"]
+    environment:
+      <<: *detector-env
+    volumes:
+      - ./config:/app/config:ro
+      - drift_db:/app/data
+      # Mount Docker socket only when docker-exec probe is configured
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - drift_net
+
+  # ── Vault dev server (local dev only) ─────────────────────────────────────
+  vault:
+    image:   hashicorp/vault:1.16
+    container_name: drift_vault
+    restart: unless-stopped
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    cap_add:
+      - IPC_LOCK
+    profiles:
+      - dev          # only starts with:  docker compose --profile dev up
+    networks:
+      - drift_net
+
+  # ── Dummy target app (local dev only) ─────────────────────────────────────
   dummy_app:
     image: alpine:latest
     container_name: myapp_web_1
-    # Keep the container alive
     command: tail -f /dev/null
+    restart: unless-stopped
     environment:
-      - DATABASE_PASSWORD=super_secure_production_password
-      - REDIS_URL=redis://production-cache:6379
-      # Notice we omit STRIPE_SECRET_KEY so the detector catches the drift!
+      DATABASE_PASSWORD: super_secure_production_password
+      REDIS_URL:         redis://production-cache:6379
+      # STRIPE_SECRET_KEY intentionally omitted to demo drift detection
+    profiles:
+      - dev
+    networks:
+      - drift_net
+
+volumes:
+  drift_db:
+
+networks:
+  drift_net:
+    driver: bridge

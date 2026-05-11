@@ -1,7 +1,44 @@
-﻿.venv/
+﻿# Python
+.venv/
 __pycache__/
 *.pyc
-.pytest_cache/
-.env
+*.pyo
+*.pyd
+.Python
+*.egg-info/
 dist/
 build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Secrets & local env — NEVER commit these
+.env
+.env.production
+.env.local
+*.env
+
+# SQLite history (runtime artefact)
+drift_history.db
+
+# Config overrides (committed skeleton lives in config/)
+detector.toml
+
+# Docker
+.dockerignore
+
+# Node / UI
+ui/node_modules/
+ui/dist/
+ui/.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
