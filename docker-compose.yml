@@ -1,0 +1,28 @@
+﻿version: '3.8'
+
+services:
+  detector:
+    build: .
+    container_name: secret_detector
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount the Docker socket so the agent can run 'docker exec' on other containers
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount config and SQLite DB so history persists between container restarts
+      - ./config:/app/config
+      - ./drift_history.db:/app/drift_history.db
+      - ./.env.production:/app/.env.production
+    depends_on:
+      - dummy_app
+
+  # This simulates a production web app that the detector is monitoring
+  dummy_app:
+    image: alpine:latest
+    container_name: myapp_web_1
+    # Keep the container alive
+    command: tail -f /dev/null
+    environment:
+      - DATABASE_PASSWORD=super_secure_production_password
+      - REDIS_URL=redis://production-cache:6379
+      # Notice we omit STRIPE_SECRET_KEY so the detector catches the drift!

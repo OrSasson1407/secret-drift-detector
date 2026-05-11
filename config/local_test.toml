@@ -1,0 +1,17 @@
+﻿[agent]
+interval_seconds = 10
+alert_on_extra = false
+fail_on_drift = false
+
+[[sources]]
+type = 'dotenv'
+path = '.env.production'
+
+[[targets]]
+type = 'local_env'
+
+[alerts.slack]
+enabled = false
+
+[alerts.pagerduty]
+enabled = false

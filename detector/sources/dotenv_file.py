@@ -1,25 +1,20 @@
-from __future__ import annotations
+﻿import dotenv
+from datetime import datetime, timezone
+from detector.sources import BaseSource, SecretSnapshot
 
-import asyncio
-from pathlib import Path
-
-from dotenv import dotenv_values
-
-from . import BaseSource, SecretSnapshot
-
-
-class DotenvSource(BaseSource):
-    def __init__(self, path: str) -> None:
-        self.path = Path(path)
-        self.label = f"dotenv:{path}"
+class DotEnvSource(BaseSource):
+    def __init__(self, path: str):
+        self.path = path
 
     async def fetch(self) -> SecretSnapshot:
-        if not self.path.exists():
-            raise FileNotFoundError(f".env file not found: {self.path}")
-
-        values = await asyncio.to_thread(dotenv_values, self.path)
-
+        # dotenv_values returns a dict of the parsed file
+        raw_secrets = dotenv.dotenv_values(self.path)
+        
+        # Filter out None values just in case there are empty declarations
+        secrets = {k: v for k, v in raw_secrets.items() if v is not None}
+        
         return SecretSnapshot(
-            source=self.label,
-            secrets={k: v for k, v in values.items() if v is not None},
+            source=f"dotenv:{self.path}",
+            fetched_at=datetime.now(timezone.utc),
+            secrets=secrets
         )

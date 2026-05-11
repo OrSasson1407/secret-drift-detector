@@ -9,6 +9,11 @@ addr = 'https://vault.internal:8200'
 path = 'secret/data/production/app'
 
 [[sources]]
+type = 'ssm'
+prefix = '/production/myapp/'
+region = 'us-east-1'
+
+[[sources]]
 type = 'dotenv'
 path = '.env.production'
 
@@ -16,7 +21,16 @@ path = '.env.production'
 type = 'docker'
 container = 'myapp_web_1'
 
+[[targets]]
+type = 'proc'
+pid_file = '/var/run/myapp.pid'
+
 [alerts.slack]
-enabled = false
+enabled = true
 webhook_url = 'env:SLACK_DRIFT_WEBHOOK'
 min_severity = 'warn'
+
+[alerts.pagerduty]
+enabled = true
+integration_key = 'env:PD_INTEGRATION_KEY'
+min_severity = 'critical'
