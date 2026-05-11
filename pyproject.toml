@@ -1,0 +1,46 @@
+[tool.poetry]
+name = "secret-drift-detector"
+version = "0.1.0"
+description = "Detect config drift between expected secrets and live runtime"
+authors = ["OrSasson1407 <orsasson1407@gmail.com>"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+hvac = "^2.3"
+boto3 = "^1.34"
+kubernetes = "^29.0"
+google-cloud-secret-manager = "^2.20"
+click = "^8.1"
+rich = "^13.7"
+pydantic = "^2.6"
+aiohttp = "^3.9"
+deepdiff = "^6.7"
+cryptography = "^42.0"
+prometheus-client = "^0.20"
+structlog = "^24.1"
+fastapi = "^0.110.0"
+uvicorn = "^0.29.0"
+python-dotenv = "^1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-asyncio = "^0.23"
+moto = {version = "^5.0", extras = ["ssm", "secretsmanager"]}
+httpx = "^0.27"
+responses = "^0.25"
+black = "^24.0"
+ruff = "^0.4"
+mypy = "^1.9"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

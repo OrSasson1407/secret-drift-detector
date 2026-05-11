@@ -1,0 +1,22 @@
+﻿[agent]
+interval_seconds = 60
+alert_on_extra = false
+fail_on_drift = true
+
+[[sources]]
+type = 'vault'
+addr = 'https://vault.internal:8200'
+path = 'secret/data/production/app'
+
+[[sources]]
+type = 'dotenv'
+path = '.env.production'
+
+[[targets]]
+type = 'docker'
+container = 'myapp_web_1'
+
+[alerts.slack]
+enabled = false
+webhook_url = 'env:SLACK_DRIFT_WEBHOOK'
+min_severity = 'warn'
