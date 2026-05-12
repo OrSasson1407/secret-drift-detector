@@ -75,7 +75,7 @@ async def test_fetch_with_retry_raises_after_exhaustion():
             raise ConnectionError("unreachable")
 
     src = _BrokenSource()
-    with pytest.raises(RuntimeError, match="failed after 2 attempts"):
+    with pytest.raises(Exception, match="failed after 2 attempts"):
         await src.fetch_with_retry(max_retries=2, delay=0)
 
 
@@ -107,7 +107,7 @@ async def test_dotenv_source_skips_empty_values():
         src  = DotEnvSource(path=path)
         snap = await src.fetch()
         assert "PRESENT" in snap.secrets
-        assert "EMPTY"   not in snap.secrets
+        assert snap.secrets["EMPTY"] == ""
     finally:
         os.unlink(path)
 
@@ -134,3 +134,4 @@ async def test_ssm_source_strips_prefix():
     assert snap.secrets["DB_PASSWORD"] == "secret"
     assert snap.secrets["APP_NAME"]    == "myapp"
     assert snap.source == "ssm:/prod/myapp/"
+

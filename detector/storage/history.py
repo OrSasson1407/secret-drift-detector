@@ -45,7 +45,7 @@ class History:
         query += " ORDER BY id DESC LIMIT ?"
         with self._connect() as conn:
             rows = conn.execute(query, (limit,)).fetchall()
-        return [_row_to_summary(r) for r in rows]
+        return [self._row_to_summary(r) for r in rows]
 
     def get_run(self, run_id: int) -> dict[str, Any] | None:
         with self._connect() as conn:
@@ -107,7 +107,7 @@ class History:
                 "ORDER BY id DESC LIMIT ?",
                 (f'%"{key_name}"%', limit),
             ).fetchall()
-        return [_row_to_summary(r) for r in rows]
+        return [self._row_to_summary(r) for r in rows]
 
     # ------------------------------------------------------------------ prune
 
@@ -167,3 +167,4 @@ class History:
             running_prev = stored_hash
 
         return results
+

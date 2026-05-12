@@ -62,7 +62,7 @@ def test_extra_in_runtime():
     report = compute_drift(e, a)
     assert report.has_drift
     item = next(i for i in report.items if i.key == "GHOST_VAR")
-    assert item.kind == DriftKind.EXTRA_IN_RUNTIME
+    assert item.kind == DriftKind.ORPHANED
 
 
 def test_extra_critical_pattern_capped_at_high():
@@ -71,7 +71,7 @@ def test_extra_critical_pattern_capped_at_high():
     a = make_actual("DATABASE_PASSWORD", "leaked")
     report = compute_drift(e, a)
     item = report.items[0]
-    assert item.kind == DriftKind.EXTRA_IN_RUNTIME
+    assert item.kind == DriftKind.ORPHANED
     assert item.severity == Severity.HIGH  # not CRITICAL
 
 
@@ -106,7 +106,7 @@ def test_mixed_drift(sample_expected, sample_actual_with_drift):
 
     kinds = {i.kind for i in report.items}
     assert DriftKind.MISSING_IN_RUNTIME in kinds
-    assert DriftKind.EXTRA_IN_RUNTIME   in kinds
+    assert DriftKind.ORPHANED   in kinds
     assert DriftKind.VALUE_CHANGED      in kinds
 
 
@@ -147,3 +147,4 @@ def test_checked_at_is_set():
     from datetime import timezone
     report = compute_drift({}, {})
     assert report.checked_at.tzinfo == timezone.utc
+

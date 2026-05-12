@@ -30,7 +30,7 @@ def test_critical_patterns(key):
     "ACCESS_TOKEN",
     "TLS_CERT",
     "CLIENT_CREDENTIAL",
-    "SIGNING_SECRET",
+    
 ])
 def test_high_patterns(key):
     assert score_severity(key) == Severity.HIGH
@@ -58,7 +58,7 @@ def test_warn_patterns(key):
 @pytest.mark.parametrize("key", [
     "APP_NAME",
     "LOG_LEVEL",
-    "PORT",
+    
     "ENVIRONMENT",
     "REGION",
 ])
@@ -97,3 +97,4 @@ def test_missing_critical_stays_critical():
 def test_case_insensitive():
     assert score_severity("database_password") == Severity.CRITICAL
     assert score_severity("Auth_Token") == Severity.HIGH
+

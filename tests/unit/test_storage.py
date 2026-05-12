@@ -101,6 +101,8 @@ def test_get_run_returns_full_report(clean_db):
 
 
 def test_get_run_not_found(clean_db):
+    from detector.storage.snapshot import Storage
+    Storage(db_path=clean_db).save_report(_drift_report())
     hist = History(db_path=clean_db)
     assert hist.get_run(9999) is None
 
@@ -127,3 +129,4 @@ def test_drift_trend_contains_required_keys(clean_db):
     point = hist.drift_trend()[0]
     for key in ("id", "timestamp", "drift_count", "has_drift", "max_severity"):
         assert key in point
+
