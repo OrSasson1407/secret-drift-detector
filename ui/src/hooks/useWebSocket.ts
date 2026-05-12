@@ -1,7 +1,7 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useState, useEffect } from 'react';
 
 export function useWebSocket(url: string) {
-  const [lastMessage, setLastMessage] = useState<any>(null);
+  const [message, setMessage] = useState<any>(null);
 
   useEffect(() => {
     const ws = new WebSocket(url);
@@ -9,17 +9,32 @@ export function useWebSocket(url: string) {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        setLastMessage(data);
-      } catch (e) {
-        console.error("WS Parse error", e);
+        setMessage(data);
+      } catch (err) {
+        console.error("WS Parse Error:", err);
       }
     };
 
-    ws.onclose = () => console.log('WS Disconnected');
-    ws.onerror = (err) => console.error('WS Error', err);
+    ws.onerror = (error) => {
+      // Suppress strict mode connection abort errors in console
+      if (ws.readyState !== WebSocket.CLOSED) {
+        console.error("WS Error Event", error);
+      }
+    };
 
-    return () => ws.close();
+    ws.onclose = () => {
+      console.log("WS Disconnected");
+    };
+
+    return () => {
+      // React 18 Strict Mode Fix: Prevent closing a websocket while it is still connecting
+      if (ws.readyState === 1) { // OPEN
+        ws.close();
+      } else if (ws.readyState === 0) { // CONNECTING
+        ws.onopen = () => ws.close();
+      }
+    };
   }, [url]);
 
-  return lastMessage;
+  return message;
 }
