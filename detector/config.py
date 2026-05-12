@@ -1,6 +1,6 @@
 ﻿import os
 import tomllib
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def _resolve_env(value: str | None) -> str | None:
@@ -11,21 +11,38 @@ def _resolve_env(value: str | None) -> str | None:
 
 
 class SourceConfig(BaseModel):
-    type:         str
-    addr:         str | None = None
-    path:         str | None = None
-    prefix:       str | None = None
-    region:       str | None = None
-    token:        str | None = None
-    project:      str | None = None   # Doppler project
-    config_env:   str | None = None   # Doppler config/environment
-    namespace:    str | None = None   # Kubernetes namespace
-    label_selector: str | None = None # Kubernetes label selector
+    type:            str
+    addr:            str | None = None
+    path:            str | None = None
+    prefix:          str | None = None
+    region:          str | None = None
+    token:           str | None = None
+    project:         str | None = None        # Doppler project
+    config_env:      str | None = None        # Doppler config/environment
+    namespace:       str | None = None        # Kubernetes namespace
+    label_selector:  str | None = None        # Kubernetes label selector
+    mount_version:   int        = 2           # Vault KV version (1 or 2)
+    key_prefix:      str | None = None        # Strip this prefix from returned key names
 
     @field_validator("token", "addr", mode="before")
     @classmethod
     def resolve_env_vars(cls, v):
         return _resolve_env(v)
+
+    @model_validator(mode="after")
+    def check_required_fields(self) -> "SourceConfig":
+        required: dict[str, list[str]] = {
+            "vault":   ["addr", "path"],
+            "ssm":     ["prefix", "region"],
+            "doppler": ["project", "config_env"],
+            "dotenv":  ["path"],
+        }
+        missing = [f for f in required.get(self.type, []) if not getattr(self, f)]
+        if missing:
+            raise ValueError(
+                f"Source type '{self.type}' is missing required field(s): {', '.join(missing)}"
+            )
+        return self
 
 
 class TargetConfig(BaseModel):
@@ -41,6 +58,7 @@ class SlackAlertConfig(BaseModel):
     enabled:      bool = False
     webhook_url:  str | None = None
     min_severity: str = "warn"
+    mention:      str | None = None   # e.g. "<!channel>" or "<@U12345>"
 
     @field_validator("webhook_url", mode="before")
     @classmethod
@@ -78,11 +96,13 @@ class AlertsConfig(BaseModel):
 
 
 class AgentConfig(BaseModel):
-    interval_seconds: int  = 60
-    alert_on_extra:   bool = False
-    fail_on_drift:    bool = True
-    max_retries:      int  = 3        # retries per source fetch
-    retry_delay:      float = 2.0    # seconds between retries
+    interval_seconds: int   = 60
+    alert_on_extra:   bool  = False
+    fail_on_drift:    bool  = True
+    max_retries:      int   = 3
+    retry_delay:      float = 2.0
+    timeout_seconds:  float = 10.0   # per-source network timeout
+    db_path:          str   = "drift_history.db"
 
 
 class DetectorConfig(BaseModel):

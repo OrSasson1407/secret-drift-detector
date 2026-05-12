@@ -1,4 +1,4 @@
-﻿[tool.poetry]
+[tool.poetry]
 name        = "secret-drift-detector"
 version     = "0.3.0"
 description = "Detect config drift between expected secrets and live runtime"

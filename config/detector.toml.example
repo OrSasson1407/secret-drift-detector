@@ -1,0 +1,148 @@
+﻿# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║            Secret Drift Detector — annotated config reference           ║
+# ║  Copy to detector.toml, fill in your values, delete unused sections.    ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+# ── Agent behaviour ──────────────────────────────────────────────────────────
+[agent]
+
+# How often the watch daemon polls (seconds).
+interval_seconds = 60
+
+# If true, keys present in runtime but absent from any source are reported.
+# Usually noisy — set to false unless you want full inventory control.
+alert_on_extra = false
+
+# Exit code 1 when drift is found — useful as a CI gate.
+fail_on_drift = true
+
+# Retries per source fetch before giving up (exponential back-off + jitter).
+max_retries = 3
+
+# Base delay for retry back-off in seconds (doubles each attempt, with jitter).
+retry_delay = 2.0
+
+# Per-source network timeout in seconds.
+timeout_seconds = 10.0
+
+# Path to the SQLite history database.
+db_path = "drift_history.db"
+
+
+# ── Sources ───────────────────────────────────────────────────────────────────
+# Add as many [[sources]] blocks as you need — all are merged before diffing.
+
+# -- HashiCorp Vault (KV v2, default) -----------------------------------------
+[[sources]]
+type          = "vault"
+addr          = "https://vault.internal:8200"   # or env:VAULT_ADDR
+path          = "secret/data/production/app"    # mount/path
+# token       = "env:VAULT_TOKEN"               # default: reads $VAULT_TOKEN
+# mount_version = 2                             # 1 or 2 (default: 2)
+# key_prefix  = "myapp/"                        # strip this prefix from key names
+# timeout_seconds = 10.0                        # overrides agent timeout
+
+# -- HashiCorp Vault (KV v1 legacy) -------------------------------------------
+# [[sources]]
+# type          = "vault"
+# addr          = "https://vault.internal:8200"
+# path          = "secret/production/app"       # no 'data/' for KV v1
+# mount_version = 1
+
+# -- AWS SSM Parameter Store --------------------------------------------------
+[[sources]]
+type       = "ssm"
+prefix     = "/production/myapp/"
+region     = "us-east-1"
+# key_prefix = "myapp/"                         # strip this prefix from key names
+# Credentials: uses $AWS_PROFILE, instance role, or ECS task role automatically.
+
+# -- AWS Secrets Manager ------------------------------------------------------
+# [[sources]]
+# type   = "secrets_manager"
+# path   = "myapp/production/db, myapp/production/api"  # comma-separated names or ARNs
+# region = "us-east-1"
+# JSON secrets are auto-expanded into individual keys.
+# Plain string secrets use the secret name as the key.
+
+# -- Doppler ------------------------------------------------------------------
+# [[sources]]
+# type       = "doppler"
+# project    = "myapp"
+# config     = "production"                     # Doppler environment name
+# token      = "env:DOPPLER_TOKEN"              # read-only service token
+
+# -- Local .env file ----------------------------------------------------------
+[[sources]]
+type = "dotenv"
+path = ".env.production"
+# encoding = "utf-8"                            # default: utf-8
+
+# -- Kubernetes Secrets -------------------------------------------------------
+# [[sources]]
+# type           = "kubernetes"
+# namespace      = "production"
+# label_selector = "app=myapp"                  # optional; fetches all if omitted
+# Credentials: uses $KUBECONFIG or in-cluster service account automatically.
+
+# -- GCP Secret Manager -------------------------------------------------------
+# [[sources]]
+# type    = "gcp"
+# project = "my-gcp-project"
+# Credentials: uses $GOOGLE_APPLICATION_CREDENTIALS or ADC automatically.
+
+
+# ── Targets ───────────────────────────────────────────────────────────────────
+# The live runtime to compare against. Add one or more [[targets]] blocks.
+
+# -- Docker container ---------------------------------------------------------
+[[targets]]
+type      = "docker"
+container = "myapp_web_1"
+# strip_system = true                           # strip OS noise (PATH, HOME, etc.)
+
+# -- Linux /proc/<pid>/environ ------------------------------------------------
+# [[targets]]
+# type     = "proc"
+# pid_file = "/var/run/myapp.pid"
+# strip_system = true
+
+# -- Kubernetes pod -----------------------------------------------------------
+# [[targets]]
+# type      = "k8s_exec"
+# pod       = "myapp-6d4b9f-xk2p7"
+# namespace = "production"
+# container = "app"                             # optional; first container if omitted
+# strip_system = true
+
+# -- Local process (current env, useful for local dev) ------------------------
+# [[targets]]
+# type = "local_env"
+
+# -- App HTTP introspection endpoint ------------------------------------------
+# [[targets]]
+# type = "http_introspect"
+# url  = "http://myapp.internal/_debug/env"    # must return JSON {KEY: value}
+
+
+# ── Alerts ────────────────────────────────────────────────────────────────────
+
+# -- Slack --------------------------------------------------------------------
+[alerts.slack]
+enabled     = false
+webhook_url = "env:SLACK_DRIFT_WEBHOOK"         # Slack Incoming Webhook URL
+min_severity = "warn"                           # info | warn | high | critical
+# mention    = "<!channel>"                     # optional: "<!here>", "<@U12345>"
+
+# -- PagerDuty ----------------------------------------------------------------
+[alerts.pagerduty]
+enabled         = false
+integration_key = "env:PD_INTEGRATION_KEY"      # Events API v2 routing key
+min_severity    = "critical"
+
+# -- Generic webhook ----------------------------------------------------------
+[alerts.webhook]
+enabled      = false
+url          = "env:DRIFT_WEBHOOK_URL"
+min_severity = "warn"
+# headers    = { "Authorization" = "Bearer env:WEBHOOK_TOKEN" }

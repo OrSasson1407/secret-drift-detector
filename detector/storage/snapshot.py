@@ -3,7 +3,6 @@ import sqlite3
 from datetime import datetime, timezone
 from detector.diff.models import DriftReport
 
-
 _DDL = """
 CREATE TABLE IF NOT EXISTS runs (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,6 +18,12 @@ CREATE TABLE IF NOT EXISTS runs (
 )
 """
 
+_EXTRA_COLS = [
+    ("max_severity", "TEXT"),
+    ("sources",      "TEXT"),
+    ("targets",      "TEXT"),
+]
+
 
 class Storage:
     def __init__(self, db_path: str = "drift_history.db"):
@@ -28,14 +33,16 @@ class Storage:
     def _init_db(self):
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(_DDL)
-            # Add columns introduced in this upgrade (idempotent)
-            for col, typedef in [("max_severity","TEXT"), ("sources","TEXT"), ("targets","TEXT")]:
+            for col, typedef in _EXTRA_COLS:
                 try:
                     conn.execute(f"ALTER TABLE runs ADD COLUMN {col} {typedef}")
                 except sqlite3.OperationalError:
-                    pass  # column already exists
+                    pass   # column already exists
+
+    # ------------------------------------------------------------------ write
 
     def save_report(self, report: DriftReport) -> int:
+        """Persist a DriftReport and return the new run ID."""
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.execute(
                 """INSERT INTO runs
@@ -55,3 +62,43 @@ class Storage:
                 ),
             )
             return cur.lastrowid
+
+    # ------------------------------------------------------------------ read
+
+    def get_latest_report(self) -> DriftReport | None:
+        """Return the most recent DriftReport, or None if the DB is empty."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT report_json FROM runs ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        if not row:
+            return None
+        return DriftReport.model_validate_json(row["report_json"])
+
+    def get_report(self, run_id: int) -> DriftReport | None:
+        """Return the DriftReport for a specific run ID."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT report_json FROM runs WHERE id=?", (run_id,)
+            ).fetchone()
+        if not row:
+            return None
+        return DriftReport.model_validate_json(row["report_json"])
+
+    # ------------------------------------------------------------------ prune
+
+    def delete_old_runs(self, keep: int = 500) -> int:
+        """Delete oldest runs, keeping only the most recent *keep* rows.
+
+        Returns the number of rows deleted.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.execute(
+                """DELETE FROM runs WHERE id NOT IN (
+                       SELECT id FROM runs ORDER BY id DESC LIMIT ?
+                   )""",
+                (keep,),
+            )
+            return cur.rowcount
