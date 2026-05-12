@@ -4,10 +4,13 @@ from pydantic import BaseModel, Field
 
 
 class DriftKind(str, Enum):
-    MISSING_IN_RUNTIME = "missing"   # in expected, absent from live env
-    EXTRA_IN_RUNTIME   = "extra"     # in live env, absent from expected
-    VALUE_CHANGED      = "changed"   # key present both sides, hash differs
-    STALE_SECRET       = "stale"     # rotation deadline exceeded
+    MISSING_IN_RUNTIME = "missing"
+    EXTRA_IN_RUNTIME   = "extra"
+    VALUE_CHANGED      = "changed"
+    STALE_SECRET       = "stale"
+    RENAMED            = "renamed"
+    ORPHANED           = "orphaned"
+    WEAK_VALUE         = "weak"
 
 
 class Severity(str, Enum):
@@ -39,6 +42,8 @@ class DriftItem(BaseModel):
     severity:          Severity = Severity.INFO
     detail:            str = ""
     remediation_hint:  str = ""
+    renamed_from:      str | None = None
+    entropy_score:     float | None = None
 
     @property
     def is_critical(self) -> bool:
@@ -46,15 +51,16 @@ class DriftItem(BaseModel):
 
 
 class DriftReport(BaseModel):
-    run_id:         int | None = None          # filled in by Storage after persist
+    run_id:         int | None = None
     items:          list[DriftItem] = Field(default_factory=list)
     expected_count: int = 0
     actual_count:   int = 0
     checked_at:     datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     sources:        list[str] = Field(default_factory=list)
     targets:        list[str] = Field(default_factory=list)
+    prev_hash:      str | None = None
+    report_hash:    str | None = None
 
-    # ------------------------------------------------------------------ queries
     @property
     def has_drift(self) -> bool:
         return len(self.items) > 0
@@ -71,9 +77,7 @@ class DriftReport(BaseModel):
     def by_kind(self, kind: DriftKind) -> list["DriftItem"]:
         return [i for i in self.items if i.kind == kind]
 
-    # ------------------------------------------------------------------ summary
     def summary(self) -> dict:
-        """Compact dict suitable for logging / alert headers."""
         counts: dict[str, int] = {}
         for item in self.items:
             counts[item.severity.value] = counts.get(item.severity.value, 0) + 1

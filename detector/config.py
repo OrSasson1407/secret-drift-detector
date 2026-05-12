@@ -4,7 +4,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def _resolve_env(value: str | None) -> str | None:
-    """Resolve 'env:VAR_NAME' syntax to the actual environment variable value."""
     if value and value.startswith("env:"):
         return os.environ.get(value[4:])
     return value
@@ -17,12 +16,13 @@ class SourceConfig(BaseModel):
     prefix:          str | None = None
     region:          str | None = None
     token:           str | None = None
-    project:         str | None = None        # Doppler project
-    config_env:      str | None = None        # Doppler config/environment
-    namespace:       str | None = None        # Kubernetes namespace
-    label_selector:  str | None = None        # Kubernetes label selector
-    mount_version:   int        = 2           # Vault KV version (1 or 2)
-    key_prefix:      str | None = None        # Strip this prefix from returned key names
+    project:         str | None = None
+    config_env:      str | None = None
+    namespace:       str | None = None
+    label_selector:  str | None = None
+    mount_version:   int        = 2
+    key_prefix:      str | None = None
+    max_age_days:    int | None = None   # rotation deadline in days
 
     @field_validator("token", "addr", mode="before")
     @classmethod
@@ -51,14 +51,14 @@ class TargetConfig(BaseModel):
     pid_file:   str | None = None
     pod:        str | None = None
     namespace:  str | None = None
-    url:        str | None = None   # http_introspect endpoint
+    url:        str | None = None
 
 
 class SlackAlertConfig(BaseModel):
     enabled:      bool = False
     webhook_url:  str | None = None
     min_severity: str = "warn"
-    mention:      str | None = None   # e.g. "<!channel>" or "<@U12345>"
+    mention:      str | None = None
 
     @field_validator("webhook_url", mode="before")
     @classmethod
@@ -101,8 +101,9 @@ class AgentConfig(BaseModel):
     fail_on_drift:    bool  = True
     max_retries:      int   = 3
     retry_delay:      float = 2.0
-    timeout_seconds:  float = 10.0   # per-source network timeout
+    timeout_seconds:  float = 10.0
     db_path:          str   = "drift_history.db"
+    enable_entropy:   bool  = True   # Shannon entropy weak-value scanning
 
 
 class DetectorConfig(BaseModel):
@@ -116,7 +117,6 @@ class DetectorConfig(BaseModel):
         with open(path, "r", encoding="utf-8-sig") as f:
             content = f.read()
         data = tomllib.loads(content)
-        # Normalise key: TOML uses 'config' but our model uses 'config_env'
         for src in data.get("sources", []):
             if "config" in src and "config_env" not in src:
                 src["config_env"] = src.pop("config")

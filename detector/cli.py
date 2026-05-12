@@ -1,13 +1,17 @@
 ﻿import asyncio
 import json as _json
+import os
+import hashlib
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
 import click
 from rich.console import Console
 from rich.table import Table
+from rich.prompt import Prompt, Confirm
 
 from detector.agent import Agent
-from detector.diff.models import DriftReport, Severity
+from detector.diff.models import DriftReport, DriftKind, Severity
 from detector.storage.history import History
 from detector.storage.snapshot import Storage
 
@@ -95,7 +99,7 @@ def check(config, output, min_severity):
 @click.option("--config",   default="config/detector.toml", show_default=True)
 @click.option("--interval", type=int, default=None, help="Override interval_seconds from config")
 def watch(config, interval):
-    """Continuous daemon mode — polls on a configurable interval, prints each result."""
+    """Continuous daemon mode — polls on a configurable interval."""
     async def _run():
         agent   = Agent.from_config(config)
         ivl     = interval or agent.config.agent.interval_seconds
@@ -114,7 +118,7 @@ def watch(config, interval):
             report = await agent.run_once()
 
             if report.has_drift:
-                icon  = _SEV_ICON.get(report.max_severity.value, "●") if report.max_severity else "●"
+                icon = _SEV_ICON.get(report.max_severity.value, "●") if report.max_severity else "●"
                 console.print(
                     f"[dim]{ts}[/dim]  run #{run_num}  {icon}  "
                     f"[red]{len(report.items)} drift item(s)[/red]  "
@@ -228,6 +232,277 @@ def prune(db, keep):
     storage = Storage(db_path=db)
     deleted = storage.delete_old_runs(keep=keep)
     console.print(f"[green]Pruned {deleted} run(s). Kept most recent {keep}.[/green]")
+
+
+# ── init (wizard) ─────────────────────────────────────────────────────────────
+
+@cli.command("init")
+@click.option("--output", default="config/detector.toml",
+              show_default=True, help="Where to write the generated config")
+@click.option("--force",  is_flag=True, default=False,
+              help="Overwrite existing config without prompting")
+def init_wizard(output, force):
+    """Interactive wizard — generates a detector.toml from prompted answers."""
+    console.print("\n[bold cyan]Secret Drift Detector — Setup Wizard[/bold cyan]\n")
+
+    out_path = Path(output)
+    if out_path.exists() and not force:
+        if not Confirm.ask(f"[yellow]{output}[/yellow] already exists. Overwrite?"):
+            console.print("[dim]Aborted.[/dim]")
+            return
+
+    # ── Agent settings ───────────────────────────────────────
+    console.print("[bold]Agent settings[/bold]")
+    interval   = Prompt.ask("  Poll interval (seconds)", default="60")
+    db_path    = Prompt.ask("  SQLite database path",    default="drift_history.db")
+    fail_drift = Confirm.ask("  Exit with code 1 when drift is found?", default=True)
+    alert_extra = Confirm.ask("  Alert on extra runtime keys?", default=False)
+    enable_entropy = Confirm.ask("  Enable weak-value entropy scanning?", default=True)
+
+    # ── Source ───────────────────────────────────────────────
+    console.print("\n[bold]Secret source[/bold]")
+    src_type = Prompt.ask(
+        "  Source type",
+        choices=["dotenv", "vault", "ssm", "doppler", "secrets_manager"],
+        default="dotenv",
+    )
+
+    source_lines: list[str] = [f'[[sources]]', f'type = "{src_type}"']
+
+    if src_type == "dotenv":
+        path = Prompt.ask("  Path to .env file", default=".env")
+        source_lines.append(f'path = "{path}"')
+
+    elif src_type == "vault":
+        addr  = Prompt.ask("  Vault address",   default="http://127.0.0.1:8200")
+        path  = Prompt.ask("  Secret path",     default="secret/data/myapp")
+        token = Prompt.ask("  Token env var",   default="VAULT_TOKEN")
+        max_age = Prompt.ask("  Max secret age in days (blank to skip)", default="")
+        source_lines += [
+            f'addr  = "{addr}"',
+            f'path  = "{path}"',
+            f'token = "env:{token}"',
+        ]
+        if max_age.strip():
+            source_lines.append(f'max_age_days = {int(max_age)}')
+
+    elif src_type == "ssm":
+        prefix = Prompt.ask("  SSM parameter prefix", default="/myapp/prod/")
+        region = Prompt.ask("  AWS region",           default="us-east-1")
+        source_lines += [f'prefix = "{prefix}"', f'region = "{region}"']
+
+    elif src_type == "doppler":
+        project    = Prompt.ask("  Doppler project")
+        config_env = Prompt.ask("  Doppler config/environment", default="prd")
+        token_var  = Prompt.ask("  Token env var", default="DOPPLER_TOKEN")
+        source_lines += [
+            f'project    = "{project}"',
+            f'config     = "{config_env}"',
+            f'token      = "env:{token_var}"',
+        ]
+
+    elif src_type == "secrets_manager":
+        path   = Prompt.ask("  Secret name/ARN")
+        region = Prompt.ask("  AWS region", default="us-east-1")
+        source_lines += [f'path = "{path}"', f'region = "{region}"']
+
+    # ── Target ───────────────────────────────────────────────
+    console.print("\n[bold]Runtime target[/bold]")
+    tgt_type = Prompt.ask(
+        "  Target type",
+        choices=["local_env", "docker", "proc", "k8s_exec"],
+        default="local_env",
+    )
+
+    target_lines: list[str] = ["[[targets]]", f'type = "{tgt_type}"']
+
+    if tgt_type == "docker":
+        container = Prompt.ask("  Container name")
+        target_lines.append(f'container = "{container}"')
+    elif tgt_type == "proc":
+        pid_file = Prompt.ask("  PID file path")
+        target_lines.append(f'pid_file = "{pid_file}"')
+    elif tgt_type == "k8s_exec":
+        pod = Prompt.ask("  Pod name")
+        ns  = Prompt.ask("  Namespace", default="default")
+        target_lines += [f'pod = "{pod}"', f'namespace = "{ns}"']
+
+    # ── Slack (optional) ─────────────────────────────────────
+    alert_lines: list[str] = []
+    if Confirm.ask("\n  Configure Slack alerts?", default=False):
+        hook_var = Prompt.ask("  Slack webhook env var", default="SLACK_WEBHOOK_URL")
+        mention  = Prompt.ask("  Mention (e.g. <!channel>, blank to skip)", default="")
+        alert_lines = [
+            "[alerts.slack]",
+            "enabled     = true",
+            f'webhook_url = "env:{hook_var}"',
+            'min_severity = "warn"',
+        ]
+        if mention:
+            alert_lines.append(f'mention = "{mention}"')
+
+    # ── Assemble TOML ─────────────────────────────────────────
+    lines = [
+        "# detector.toml — generated by `detector init`",
+        "",
+        "[agent]",
+        f"interval_seconds = {interval}",
+        f'db_path          = "{db_path}"',
+        f"fail_on_drift    = {'true' if fail_drift else 'false'}",
+        f"alert_on_extra   = {'true' if alert_extra else 'false'}",
+        f"enable_entropy   = {'true' if enable_entropy else 'false'}",
+        "",
+        "\n".join(source_lines),
+        "",
+        "\n".join(target_lines),
+    ]
+    if alert_lines:
+        lines += ["", "\n".join(alert_lines)]
+
+    toml_text = "\n".join(lines) + "\n"
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(toml_text, encoding="utf-8")
+    console.print(f"\n[bold green]✔ Config written to {output}[/bold green]")
+    console.print(f"  Run [cyan]detector check --config {output}[/cyan] to verify connectivity.\n")
+
+
+# ── simulate ──────────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.option("--config",       default="config/detector.toml", show_default=True)
+@click.option("--delete",       multiple=True, metavar="KEY",  help="Remove KEY from expected snapshot")
+@click.option("--change",       multiple=True, metavar="KEY",  help="Change value of KEY to a random hash")
+@click.option("--add",          multiple=True, metavar="KEY=VALUE", help="Inject KEY=VALUE into expected snapshot")
+@click.option("--weak",         multiple=True, metavar="KEY=VALUE", help="Inject weak KEY=VALUE into runtime (for entropy test)")
+@click.option("--output",       type=click.Choice(["table", "json"]), default="table", show_default=True)
+def simulate(config, delete, change, add, weak, output):
+    """
+    Dry-run: inject synthetic drift into a snapshot and show how the tool responds.
+
+    Examples
+    --------
+    # Simulate a missing DB password
+    detector simulate --config config/detector.toml --delete DB_PASSWORD
+
+    # Simulate a changed API key
+    detector simulate --config config/detector.toml --change STRIPE_API_KEY
+
+    # Simulate a weak secret being added to runtime
+    detector simulate --config config/detector.toml --weak MY_SECRET=password123
+    """
+    import secrets as _secrets
+    from detector.diff.engine import compute_drift
+    from detector.sources import _hash
+
+    async def _run():
+        agent = Agent.from_config(config)
+
+        # Pull a real expected snapshot if sources are reachable, else use empty
+        cfg = agent.config.agent
+        snapshots = await asyncio.gather(
+            *[src.fetch_with_retry(max_retries=1, delay=0.5) for src in agent.sources],
+            return_exceptions=True,
+        )
+
+        expected: dict[str, str] = {}
+        for snap in snapshots:
+            if not isinstance(snap, Exception):
+                expected.update(snap.secrets)
+
+        # actual mirrors expected (clean baseline)
+        actual_hashed:    dict[str, str] = dict(expected)
+        actual_plaintext: dict[str, str] = {}
+
+        # Apply mutations
+        for key in delete:
+            actual_hashed.pop(key, None)
+            console.print(f"  [dim]→ deleted '{key}' from runtime snapshot[/dim]")
+
+        for key in change:
+            actual_hashed[key] = _hash(_secrets.token_hex(16))
+            console.print(f"  [dim]→ changed value of '{key}' in runtime snapshot[/dim]")
+
+        for kv in add:
+            if "=" in kv:
+                k, v = kv.split("=", 1)
+                expected[k] = _hash(v)
+                console.print(f"  [dim]→ added '{k}' to expected snapshot[/dim]")
+
+        for kv in weak:
+            if "=" in kv:
+                k, v = kv.split("=", 1)
+                actual_hashed[k]    = _hash(v)
+                actual_plaintext[k] = v
+                console.print(f"  [dim]→ injected weak value for '{k}' into runtime[/dim]")
+
+        console.print()
+
+        report = compute_drift(
+            expected,
+            actual_hashed,
+            sources=["[simulate]"],
+            targets=["[simulate]"],
+            actual_plaintext=actual_plaintext,
+            enable_entropy=cfg.enable_entropy,
+        )
+
+        if output == "json":
+            console.print_json(report.model_dump_json(indent=2))
+        else:
+            console.print("[bold yellow]⚡ SIMULATION — no data written to database[/bold yellow]\n")
+            _render_table(report)
+
+    asyncio.run(_run())
+
+
+# ── verify (audit chain) ──────────────────────────────────────────────────────
+
+@cli.command()
+@click.option("--db", default="drift_history.db", show_default=True)
+@click.option("--limit", default=100, show_default=True, type=int,
+              help="Number of most recent runs to verify")
+def verify(db, limit):
+    """
+    Verify the tamper-evident audit hash chain for stored drift reports.
+
+    Each run's hash is computed as SHA-256(prev_hash + report_json).
+    A broken chain indicates the database was modified after the fact.
+    """
+    hist = History(db_path=db)
+    runs = hist.verify_chain(limit=limit)
+
+    if not runs:
+        console.print("[dim]No runs found.[/dim]")
+        return
+
+    tbl = Table(show_header=True, header_style="bold magenta", border_style="dim")
+    tbl.add_column("ID",      style="dim", justify="right")
+    tbl.add_column("TIMESTAMP")
+    tbl.add_column("CHAIN",   justify="center")
+    tbl.add_column("STORED HASH",   style="dim")
+    tbl.add_column("EXPECTED HASH", style="dim")
+
+    all_ok = True
+    for entry in runs:
+        ok = entry["chain_ok"]
+        if not ok:
+            all_ok = False
+        status = "[green]✔ OK[/green]" if ok else "[bold red]✖ BROKEN[/bold red]"
+        tbl.add_row(
+            str(entry["id"]),
+            entry["timestamp"][:19].replace("T", " "),
+            status,
+            (entry.get("stored_hash") or "—")[:16] + "…",
+            (entry.get("expected_hash") or "—")[:16] + "…",
+        )
+
+    console.print(tbl)
+    if all_ok:
+        console.print(f"\n[bold green]✔ Chain intact across {len(runs)} run(s).[/bold green]\n")
+    else:
+        console.print(f"\n[bold red]✖ Chain violation detected — database may have been tampered with.[/bold red]\n")
+        raise SystemExit(1)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────

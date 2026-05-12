@@ -1,4 +1,5 @@
-﻿import json
+﻿import hashlib
+import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -16,6 +17,11 @@ class RunSummary:
     max_severity:   str | None
     sources:        list[str]
     targets:        list[str]
+
+
+def _compute_hash(prev_hash: str | None, report_json: str) -> str:
+    data = (prev_hash or "") + report_json
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
 class History:
@@ -55,7 +61,6 @@ class History:
     # ------------------------------------------------------------------ trend
 
     def drift_trend(self, limit: int = 30) -> list[dict]:
-        """Last N runs summarised for trend charting — oldest first."""
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT id,timestamp,drift_count,has_drift,max_severity "
@@ -67,13 +72,11 @@ class History:
     # ------------------------------------------------------------------ stats
 
     def stats(self) -> dict[str, Any]:
-        """Aggregate statistics across all recorded runs."""
         with self._connect() as conn:
             totals = conn.execute(
                 "SELECT COUNT(*) as total, SUM(has_drift) as drifted, "
                 "SUM(drift_count) as total_items FROM runs"
             ).fetchone()
-
             sev_rows = conn.execute(
                 "SELECT max_severity, COUNT(*) as cnt FROM runs "
                 "WHERE has_drift=1 AND max_severity IS NOT NULL "
@@ -96,7 +99,6 @@ class History:
     # ------------------------------------------------------------------ search
 
     def search_by_key(self, key_name: str, limit: int = 50) -> list[RunSummary]:
-        """Return runs where *key_name* appears in the drift report."""
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT id,timestamp,expected_count,actual_count,"
@@ -110,28 +112,58 @@ class History:
     # ------------------------------------------------------------------ prune
 
     def delete_before(self, before_iso: str) -> int:
-        """Delete all runs with a timestamp earlier than *before_iso*.
-
-        Returns the number of rows deleted.
-        """
         with self._connect() as conn:
             cur = conn.execute(
                 "DELETE FROM runs WHERE timestamp < ?", (before_iso,)
             )
             return cur.rowcount
 
+    # ------------------------------------------------------------------ verify chain
 
-# ------------------------------------------------------------------ helpers
+    def verify_chain(self, limit: int = 100) -> list[dict]:
+        """
+        Walk the audit hash chain for the most recent *limit* runs (oldest first)
+        and return a list of dicts with chain verification results.
 
-def _row_to_summary(r: sqlite3.Row) -> RunSummary:
-    return RunSummary(
-        id=r["id"],
-        timestamp=r["timestamp"],
-        expected_count=r["expected_count"],
-        actual_count=r["actual_count"],
-        drift_count=r["drift_count"],
-        has_drift=bool(r["has_drift"]),
-        max_severity=r["max_severity"],
-        sources=json.loads(r["sources"] or "[]"),
-        targets=json.loads(r["targets"] or "[]"),
-    )
+        Each dict contains:
+          id, timestamp, stored_hash, expected_hash, prev_hash, chain_ok
+        """
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, timestamp, report_json, prev_hash, report_hash "
+                "FROM runs ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+
+        # Reverse to oldest-first for sequential verification
+        rows = list(reversed(rows))
+
+        results: list[dict] = []
+        running_prev: str | None = None
+
+        for i, row in enumerate(rows):
+            stored_hash   = row["report_hash"]
+            stored_prev   = row["prev_hash"]
+            report_json   = row["report_json"]
+            expected_hash = _compute_hash(running_prev, report_json)
+
+            # Chain is OK if:
+            #   1. The stored prev_hash matches what we tracked
+            #   2. The stored report_hash matches our recomputed hash
+            prev_ok  = (stored_prev == running_prev)
+            hash_ok  = (stored_hash == expected_hash)
+            chain_ok = prev_ok and hash_ok
+
+            results.append({
+                "id":            row["id"],
+                "timestamp":     row["timestamp"],
+                "stored_hash":   stored_hash,
+                "expected_hash": expected_hash,
+                "prev_hash":     stored_prev,
+                "chain_ok":      chain_ok,
+            })
+
+            # Advance the running hash (use stored so gaps propagate correctly)
+            running_prev = stored_hash
+
+        return results

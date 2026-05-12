@@ -3,17 +3,17 @@ import signal
 import structlog
 
 from detector.config import DetectorConfig
-from detector.sources.vault        import VaultSource
-from detector.sources.ssm          import SSMSource
-from detector.sources.doppler      import DopplerSource
-from detector.sources.dotenv_file  import DotEnvSource
-from detector.sources.kubernetes   import KubernetesSource
+from detector.sources.vault           import VaultSource
+from detector.sources.ssm             import SSMSource
+from detector.sources.doppler         import DopplerSource
+from detector.sources.dotenv_file     import DotEnvSource
+from detector.sources.kubernetes      import KubernetesSource
 from detector.sources.secrets_manager import SecretsManagerSource
-from detector.sources.gcp          import GCPSource
-from detector.runtime.docker_exec  import DockerExecProber
-from detector.runtime.proc         import ProcEnvironProber
-from detector.runtime.local_env    import LocalEnvProber
-from detector.runtime.k8s_exec import K8sExecProber
+from detector.sources.gcp             import GCPSource
+from detector.runtime.docker_exec     import DockerExecProber
+from detector.runtime.proc            import ProcEnvironProber
+from detector.runtime.local_env       import LocalEnvProber
+from detector.runtime.k8s_exec        import K8sExecProber
 from detector.runtime.http_introspect import HttpIntrospectProber
 from detector.diff.engine  import compute_drift
 from detector.diff.models  import DriftReport, DriftKind
@@ -44,34 +44,28 @@ class Agent:
         for src in self.config.sources:
             if src.type == "vault":
                 self.sources.append(VaultSource(
-                    addr=src.addr,
-                    path=src.path,
-                    token=src.token,
-                    mount_version=src.mount_version,
-                    key_prefix=src.key_prefix,
+                    addr=src.addr, path=src.path, token=src.token,
+                    mount_version=src.mount_version, key_prefix=src.key_prefix,
                     timeout=timeout,
                 ))
             elif src.type == "ssm":
                 self.sources.append(SSMSource(
-                    prefix=src.prefix,
-                    region=src.region,
-                    key_prefix=src.key_prefix,
+                    prefix=src.prefix, region=src.region, key_prefix=src.key_prefix,
                 ))
             elif src.type == "doppler":
                 self.sources.append(DopplerSource(
-                    project=src.project,
-                    config_env=src.config_env,
-                    token=src.token,
+                    project=src.project, config_env=src.config_env, token=src.token,
                 ))
             elif src.type == "dotenv":
                 self.sources.append(DotEnvSource(path=src.path))
             elif src.type == "kubernetes":
                 self.sources.append(KubernetesSource(
-                    namespace=src.namespace,
-                    label_selector=src.label_selector,
+                    namespace=src.namespace, label_selector=src.label_selector,
                 ))
             elif src.type == "secrets_manager":
-                self.sources.append(SecretsManagerSource(path=src.path, region=src.region, key_prefix=src.key_prefix))
+                self.sources.append(SecretsManagerSource(
+                    path=src.path, region=src.region, key_prefix=src.key_prefix,
+                ))
             elif src.type == "gcp":
                 self.sources.append(GCPSource(project=src.project))
             else:
@@ -85,7 +79,10 @@ class Agent:
             elif tgt.type == "local_env":
                 self.targets.append(LocalEnvProber())
             elif tgt.type == "k8s_exec":
-                self.targets.append(K8sExecProber(pod=tgt.pod, namespace=tgt.namespace or "default", container=tgt.container, strip_system=True))
+                self.targets.append(K8sExecProber(
+                    pod=tgt.pod, namespace=tgt.namespace or "default",
+                    container=tgt.container, strip_system=True,
+                ))
             elif tgt.type == "http_introspect":
                 self.targets.append(HttpIntrospectProber(url=tgt.url))
             else:
@@ -94,20 +91,15 @@ class Agent:
         cfg = self.config.alerts
         if cfg.slack.enabled:
             self.alerters.append(SlackAlerter(
-                cfg.slack.webhook_url,
-                cfg.slack.min_severity,
-                mention=cfg.slack.mention,
+                cfg.slack.webhook_url, cfg.slack.min_severity, mention=cfg.slack.mention,
             ))
         if cfg.pagerduty.enabled:
             self.alerters.append(PagerDutyAlerter(
-                cfg.pagerduty.integration_key,
-                cfg.pagerduty.min_severity,
+                cfg.pagerduty.integration_key, cfg.pagerduty.min_severity,
             ))
         if cfg.webhook.enabled:
             self.alerters.append(WebhookAlerter(
-                cfg.webhook.url,
-                cfg.webhook.min_severity,
-                cfg.webhook.headers,
+                cfg.webhook.url, cfg.webhook.min_severity, cfg.webhook.headers,
             ))
 
     # ------------------------------------------------------------------
@@ -115,17 +107,26 @@ class Agent:
         metrics.DRIFT_CHECK_COUNT.inc()
         cfg = self.config.agent
 
-        # Fetch from all sources (with retry), merge into expected dict
         snapshots = await asyncio.gather(
             *[src.fetch_with_retry(max_retries=cfg.max_retries, delay=cfg.retry_delay)
               for src in self.sources],
             return_exceptions=True,
         )
 
-        expected:    dict[str, str] = {}
-        source_map:  dict[str, str] = {}   # key → source label for attribution
-        source_names: list[str]     = []
-        failed_sources: list[str]   = []
+        expected:      dict[str, str] = {}
+        source_map:    dict[str, str] = {}
+        source_names:  list[str]      = []
+        failed_sources: list[str]     = []
+        # Collect all keys ever seen across sources (for orphan detection)
+        all_source_keys: set[str]     = set()
+
+        # Collect rotation deadlines from source metadata
+        stale_keys: set[str] = set()
+        max_age_map: dict[str, int] = {
+            s.label: s.max_age_days
+            for s in self.sources
+            if hasattr(s, "max_age_days") and s.max_age_days
+        }
 
         for src_obj, snap in zip(self.sources, snapshots):
             if isinstance(snap, Exception):
@@ -133,16 +134,31 @@ class Agent:
                 failed_sources.append(repr(src_obj))
             else:
                 for key in snap.secrets:
-                    source_map[key] = snap.source   # last writer wins on key collision
+                    source_map[key] = snap.source
+                    all_source_keys.add(key)
+                    # Check rotation age via metadata timestamps
+                    if snap.source in max_age_map:
+                        created = snap.metadata.get("created_time", {}).get(key)
+                        if created:
+                            from datetime import datetime, timezone
+                            try:
+                                age_days = (
+                                    datetime.now(timezone.utc) -
+                                    datetime.fromisoformat(created.replace("Z", "+00:00"))
+                                ).days
+                                if age_days > max_age_map[snap.source]:
+                                    stale_keys.add(key)
+                            except Exception:
+                                pass
                 expected.update(snap.secrets)
                 source_names.append(snap.source)
 
         if failed_sources:
             log.warning("partial_snapshot", failed=failed_sources, ok=source_names)
 
-        # Probe all targets, merge actual env
-        actual_raw: dict[str, str] = {}
-        target_names: list[str] = []
+        # Probe targets — keep plaintext for entropy scoring
+        actual_raw:  dict[str, str] = {}
+        target_names: list[str]     = []
         for tgt in self.targets:
             try:
                 raw = await tgt.probe()
@@ -158,13 +174,17 @@ class Agent:
             actual,
             sources=source_names,
             targets=target_names,
+            stale_keys=stale_keys,
             source_map=source_map,
+            all_source_keys=all_source_keys,
+            actual_plaintext=actual_raw,          # enables entropy scoring
+            enable_entropy=cfg.enable_entropy,
         )
 
         if not cfg.alert_on_extra:
-            report.items = [i for i in report.items if i.kind != DriftKind.EXTRA_IN_RUNTIME]
+            report.items = [i for i in report.items
+                            if i.kind != DriftKind.EXTRA_IN_RUNTIME]
 
-        # Metrics
         metrics.EXPECTED_SECRETS.set(report.expected_count)
         metrics.RUNTIME_SECRETS.set(report.actual_count)
         metrics.ACTIVE_DRIFT_ITEMS.set(len(report.items))
@@ -201,14 +221,14 @@ class Agent:
             try:
                 loop.add_signal_handler(sig, self._stop.set)
             except (NotImplementedError, OSError):
-                pass   # Windows — signal handling via KeyboardInterrupt instead
+                pass
 
         while not self._stop.is_set():
             await self.run_once()
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=interval)
             except asyncio.TimeoutError:
-                pass   # normal — interval elapsed, run again
+                pass
 
         log.info("watch_stopped")
 
@@ -216,7 +236,3 @@ class Agent:
     @classmethod
     def from_config(cls, config_path: str) -> "Agent":
         return cls(DetectorConfig.load_from_file(config_path))
-
-
-
-

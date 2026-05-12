@@ -1,4 +1,5 @@
-﻿import json
+﻿import hashlib
+import json
 import sqlite3
 from datetime import datetime, timezone
 from detector.diff.models import DriftReport
@@ -14,7 +15,9 @@ CREATE TABLE IF NOT EXISTS runs (
     max_severity   TEXT,
     sources        TEXT,
     targets        TEXT,
-    report_json    TEXT    NOT NULL
+    report_json    TEXT    NOT NULL,
+    prev_hash      TEXT,
+    report_hash    TEXT
 )
 """
 
@@ -22,7 +25,15 @@ _EXTRA_COLS = [
     ("max_severity", "TEXT"),
     ("sources",      "TEXT"),
     ("targets",      "TEXT"),
+    ("prev_hash",    "TEXT"),
+    ("report_hash",  "TEXT"),
 ]
+
+
+def _compute_hash(prev_hash: str | None, report_json: str) -> str:
+    """SHA-256(prev_hash + report_json) — links each row to the previous one."""
+    data = (prev_hash or "") + report_json
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
 class Storage:
@@ -37,18 +48,30 @@ class Storage:
                 try:
                     conn.execute(f"ALTER TABLE runs ADD COLUMN {col} {typedef}")
                 except sqlite3.OperationalError:
-                    pass   # column already exists
+                    pass
 
     # ------------------------------------------------------------------ write
 
     def save_report(self, report: DriftReport) -> int:
-        """Persist a DriftReport and return the new run ID."""
+        """Persist a DriftReport with audit hash chain. Returns the new run ID."""
         with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+
+            # Get the hash of the previous run (chain link)
+            row = conn.execute(
+                "SELECT report_hash FROM runs ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            prev_hash = row["report_hash"] if row else None
+
+            report_json  = report.model_dump_json()
+            report_hash  = _compute_hash(prev_hash, report_json)
+
             cur = conn.execute(
                 """INSERT INTO runs
                    (timestamp, expected_count, actual_count, drift_count,
-                    has_drift, max_severity, sources, targets, report_json)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                    has_drift, max_severity, sources, targets, report_json,
+                    prev_hash, report_hash)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     report.checked_at.isoformat(),
                     report.expected_count,
@@ -58,7 +81,9 @@ class Storage:
                     report.max_severity.value if report.max_severity else None,
                     json.dumps(report.sources),
                     json.dumps(report.targets),
-                    report.model_dump_json(),
+                    report_json,
+                    prev_hash,
+                    report_hash,
                 ),
             )
             return cur.lastrowid
@@ -66,7 +91,6 @@ class Storage:
     # ------------------------------------------------------------------ read
 
     def get_latest_report(self) -> DriftReport | None:
-        """Return the most recent DriftReport, or None if the DB is empty."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
@@ -77,7 +101,6 @@ class Storage:
         return DriftReport.model_validate_json(row["report_json"])
 
     def get_report(self, run_id: int) -> DriftReport | None:
-        """Return the DriftReport for a specific run ID."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
@@ -90,10 +113,6 @@ class Storage:
     # ------------------------------------------------------------------ prune
 
     def delete_old_runs(self, keep: int = 500) -> int:
-        """Delete oldest runs, keeping only the most recent *keep* rows.
-
-        Returns the number of rows deleted.
-        """
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.execute(
                 """DELETE FROM runs WHERE id NOT IN (
