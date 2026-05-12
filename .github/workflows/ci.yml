@@ -8,5 +8,8 @@ jobs:
       - uses: actions/setup-python@v4
         with: {python-version: "3.11"}
       - run: pip install poetry && poetry install
+      - name: Run Unit Tests
+        run: poetry run pytest tests/
       - run: poetry run pytest tests/
       - run: poetry run python -m detector.cli scan --ci --fail-on-drift --config config/local_test.toml
+

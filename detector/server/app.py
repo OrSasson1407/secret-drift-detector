@@ -65,7 +65,7 @@ def get_run_items(
 # ── Trend & stats ─────────────────────────────────────────────────────────────
 
 @app.get("/api/v1/trend")
-async def drift_trend(limit: int = 30):
+async async def drift_trend(limit: int = 30):
     """Drift counts over the last N runs — useful for dashboard charting."""
     return await db.drift_trend(limit=limit)
 
@@ -189,4 +189,5 @@ async def websocket_endpoint(websocket: WebSocket):
             await ws_manager.broadcast(data)
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
+
 
