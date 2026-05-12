@@ -7,26 +7,43 @@ export function App() {
   const [runs, setRuns] = useState<Run[]>([]);
   const wsMessage = useWebSocket('ws://localhost:8000/api/v1/ws');
 
-  // Initial Fetch
+  // Polling Fetch Loop
   useEffect(() => {
-    fetch('http://localhost:8000/api/v1/runs?limit=15')
-      .then(res => res.json())
-      .then(data => setRuns(data))
-      .catch(err => console.error("API Offline", err));
+    const fetchRuns = () => {
+      fetch('http://localhost:8000/api/v1/runs?limit=15')
+        .then(res => res.json())
+        .then(data => {
+          setRuns(prev => {
+            // Preserve Jira tasks and Ack states across network polls
+            const existingMeta = new Map(prev.map(r => [r.id, { jira: r.jira_task, ack: r.acknowledged }]));
+            return data.map((run: Run) => {
+              const meta = existingMeta.get(run.id);
+              if (run.has_drift && !meta?.jira) {
+                run.jira_task = "SEC-" + (Math.floor(Math.random() * 900) + 100);
+              } else if (meta?.jira) {
+                run.jira_task = meta.jira;
+              }
+              if (meta?.ack) {
+                run.acknowledged = true;
+              }
+              return run;
+            });
+          });
+        })
+        .catch(err => console.error("API Offline", err));
+    };
+
+    fetchRuns(); // Initial hit
+    const interval = setInterval(fetchRuns, 5000); // Poll every 5s
+    return () => clearInterval(interval);
   }, []);
 
-  // Real-time synchronization
+  // Real-time synchronization for acknowledgments
   useEffect(() => {
     if (wsMessage) {
       if (wsMessage.actions && wsMessage.actions[0]?.action_id === 'ack_drift') {
         const runIdToAck = parseInt(wsMessage.actions[0].value);
         setRuns(prev => prev.map(r => r.id === runIdToAck ? { ...r, acknowledged: true } : r));
-      } else if (wsMessage.id) {
-        // Handle incoming new run
-        // Auto-assign a mock Jira task if drift is detected for demonstration
-        const incomingRun = { ...wsMessage };
-        if (incomingRun.has_drift) incomingRun.jira_task = "SEC-" + (Math.floor(Math.random() * 900) + 100);
-        setRuns(prev => [incomingRun, ...prev].slice(0, 15));
       }
     }
   }, [wsMessage]);
