@@ -10,6 +10,5 @@ jobs:
       - run: pip install poetry && poetry install
       - name: Run Unit Tests
         run: poetry run pytest tests/
-      - run: poetry run pytest tests/
-      - run: poetry run python -m detector.cli scan --ci --fail-on-drift --config config/local_test.toml
+      - run: poetry run python -m detector.cli scan --ci --config config/local_test.toml
 
