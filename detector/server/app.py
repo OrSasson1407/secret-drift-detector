@@ -49,7 +49,7 @@ async def get_run(run_id: int):
 
 
 @app.get("/api/v1/runs/{run_id}/items")
-async async def get_run_items(
+async def get_run_items(
     run_id: int,
     min_severity: str = Query(default="info", pattern="^(info|warn|high|critical)$"),
 ):
