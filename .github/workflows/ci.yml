@@ -23,5 +23,9 @@ jobs:
           pip install poetry
           poetry install
           
+      - name: Run Unit Tests
+        run: poetry run pytest tests/
+          
       - name: Run Secret Drift CI Quality Gate
-        run: poetry run python -m detector.cli scan --ci --fail-on-drift
+        # Use the local test config so it doesn't crash looking for real K8s/GCP credentials in GitHub Actions
+        run: poetry run python -m detector.cli scan --ci --fail-on-drift --config config/local_test.toml
