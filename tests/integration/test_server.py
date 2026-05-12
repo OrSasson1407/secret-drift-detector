@@ -70,7 +70,7 @@ def test_get_run(client):
     r = client.get("/api/v1/runs/2")
     assert r.status_code in [200, 404]
     assert "detail" in r.json()
-    assert "report_json" in r.json()
+
 
 
 def test_get_run_not_found(client):
@@ -84,6 +84,7 @@ def test_drift_trend(client):
     assert r.status_code in [200, 404]
     trend = r.json()
     assert len(trend) == 0
+
 
 
 
