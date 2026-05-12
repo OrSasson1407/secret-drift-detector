@@ -89,6 +89,9 @@ class WebhookAlertConfig(BaseModel):
         return _resolve_env(v)
 
 
+class RemediationConfig(BaseModel):
+    enabled: bool = False
+
 class AlertsConfig(BaseModel):
     slack:      SlackAlertConfig      = Field(default_factory=SlackAlertConfig)
     pagerduty:  PagerDutyAlertConfig  = Field(default_factory=PagerDutyAlertConfig)
@@ -111,6 +114,7 @@ class DetectorConfig(BaseModel):
     sources: list[SourceConfig]
     targets: list[TargetConfig]
     alerts:  AlertsConfig = Field(default_factory=AlertsConfig)
+    remediation: RemediationConfig = Field(default_factory=RemediationConfig)
 
     @classmethod
     def load_from_file(cls, path: str) -> "DetectorConfig":
@@ -121,3 +125,4 @@ class DetectorConfig(BaseModel):
             if "config" in src and "config_env" not in src:
                 src["config_env"] = src.pop("config")
         return cls(**data)
+

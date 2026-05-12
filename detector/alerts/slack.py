@@ -74,7 +74,33 @@ class SlackAlerter(BaseAlerter):
         if report.run_id:
             blocks.append({
                 "type": "context",
-                "elements": [{"type": "mrkdwn", "text": f"Run ID: `{report.run_id}`"}],
+                "elements": [{"type": "mrkdwn", "text": f"Run ID: {report.run_id}"}],
+            })
+            
+            # --- NEW: Interactive Actions for Slack ---
+            blocks.append({
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "✅ Acknowledge"
+                        },
+                        "style": "primary",
+                        "action_id": "ack_drift",
+                        "value": str(report.run_id)
+                    },
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "💤 Snooze (1h)"
+                        },
+                        "action_id": "snooze_drift",
+                        "value": str(report.run_id)
+                    }
+                ]
             })
 
         await self._post_with_retry({"blocks": blocks})

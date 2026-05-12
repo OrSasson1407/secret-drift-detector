@@ -23,6 +23,8 @@ from detector.server       import metrics
 from detector.alerts.slack     import SlackAlerter
 from detector.alerts.pagerduty import PagerDutyAlerter
 from detector.alerts.webhook   import WebhookAlerter
+from detector.remediation.trigger import RemediationManager
+from detector.server.metrics import REMEDIATION_TRIGGERED
 
 log = structlog.get_logger()
 
@@ -34,6 +36,7 @@ class Agent:
         self.targets  = []
         self.alerters = []
         self.storage  = Storage(db_path=config.agent.db_path)
+        self.remediation = RemediationManager(enabled=config.remediation.enabled if hasattr(config, 'remediation') else False)
         self._stop    = asyncio.Event()
         self._init_components()
 
@@ -203,6 +206,10 @@ class Agent:
                         run_id=run_id,
                         items=len(report.items),
                         max_severity=str(report.max_severity))
+            
+            if hasattr(self, 'remediation') and self.remediation.enabled:
+                await self.remediation.trigger(report)
+                REMEDIATION_TRIGGERED.inc()
         else:
             log.info("no_drift",
                      run_id=run_id,
@@ -236,3 +243,4 @@ class Agent:
     @classmethod
     def from_config(cls, config_path: str) -> "Agent":
         return cls(DetectorConfig.load_from_file(config_path))
+

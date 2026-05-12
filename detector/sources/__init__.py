@@ -4,6 +4,7 @@ import random
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from pydantic import BaseModel
+from detector.server.metrics import SOURCE_FETCH_SUCCESS, SOURCE_FETCH_ERROR
 
 
 def _hash(value: str) -> str:
@@ -58,15 +59,17 @@ class BaseSource(ABC):
 
         for attempt in range(1, max_retries + 1):
             try:
-                return await self.masked_fetch()
+                res = await self.masked_fetch()
+                SOURCE_FETCH_SUCCESS.labels(source_name=self.label).inc()
+                return res
             except Exception as exc:
                 last_exc = exc
                 if attempt < max_retries:
                     sleep_max  = min(cap, delay * (2 ** (attempt - 1)))
                     sleep_time = random.uniform(0, sleep_max)   # full jitter
                     await asyncio.sleep(sleep_time)
-
-        raise SourceError(
+            SOURCE_FETCH_ERROR.labels(source_name=self.label).inc()
+            raise SourceError(
             source_name=self.label,
             cause=last_exc,   # type: ignore[arg-type]
             attempts=max_retries,
@@ -74,3 +77,4 @@ class BaseSource(ABC):
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} type={self.type!r}>"
+
