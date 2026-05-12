@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { Run } from '../types';
+import type { Run } from '../types';
 
 interface Props {
   run: Run;
