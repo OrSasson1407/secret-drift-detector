@@ -518,3 +518,31 @@ def _parse_since(value: str) -> datetime:
 
 if __name__ == "__main__":
     cli()
+
+# ── scan (CI integration) ─────────────────────────────────────────────────────
+
+@cli.command()
+@click.option('--config',       default='config/detector.toml', show_default=True)
+@click.option('--output',       type=click.Choice(['table', 'json']), default='table', show_default=True)
+@click.option('--min-severity', default='info', show_default=True, type=click.Choice(['info', 'warn', 'high', 'critical']))
+@click.option('--ci',           is_flag=True, help='Run in CI mode')
+@click.option('--fail-on-drift',is_flag=True, help='Force exit code 1 if drift is detected')
+def scan(config, output, min_severity, ci, fail_on_drift):
+    "\""Scan for drift (designed for CI/CD pipelines)."\""
+    async def _run():
+        agent  = Agent.from_config(config)
+        report = await agent.run_once()
+
+        if output == "json":
+            console.print_json(report.model_dump_json(indent=2))
+        else:
+            threshold    = Severity(min_severity)
+            report.items = report.items_at_or_above(threshold)
+            _render_table(report)
+
+        # Fail the pipeline if drift is found and the flag is set
+        should_fail = fail_on_drift or agent.config.agent.fail_on_drift
+        if should_fail and report.has_drift:
+            raise SystemExit(1)
+
+    asyncio.run(_run())
