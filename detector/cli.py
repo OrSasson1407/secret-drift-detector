@@ -528,7 +528,7 @@ if __name__ == "__main__":
 @click.option('--ci',           is_flag=True, help='Run in CI mode')
 @click.option('--fail-on-drift',is_flag=True, help='Force exit code 1 if drift is detected')
 def scan(config, output, min_severity, ci, fail_on_drift):
-    "\""Scan for drift (designed for CI/CD pipelines)."\""
+    """Scan for drift (designed for CI/CD pipelines)."""
     async def _run():
         agent  = Agent.from_config(config)
         report = await agent.run_once()
@@ -546,3 +546,4 @@ def scan(config, output, min_severity, ci, fail_on_drift):
             raise SystemExit(1)
 
     asyncio.run(_run())
+
