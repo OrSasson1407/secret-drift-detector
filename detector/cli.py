@@ -516,9 +516,6 @@ def _parse_since(value: str) -> datetime:
     return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
 
 
-if __name__ == "__main__":
-    cli()
-
 
 # ── scan (CI integration) ─────────────────────────────────────────────────────
 
@@ -546,3 +543,6 @@ def scan(config, output, min_severity, ci, fail_on_drift):
             raise SystemExit(1)
 
     asyncio.run(_run())
+
+if __name__ == "__main__":
+    cli()
