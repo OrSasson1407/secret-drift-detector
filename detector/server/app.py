@@ -1,4 +1,4 @@
-import asyncio
+ï»¿import asyncio
 import json as _json
 import os
 from dataclasses import asdict
@@ -66,7 +66,7 @@ async def get_run_items(
 
 @app.get("/api/v1/trend")
 async def drift_trend(limit: int = 30):
-    """Drift counts over the last N runs — useful for dashboard charting."""
+    """Drift counts over the last N runs - useful for dashboard charting."""
     return await db.drift_trend(limit=limit)
 
 
@@ -91,7 +91,7 @@ async def latest_run():
 
 @app.get("/api/v1/stream")
 async def stream_drift(last_id: int = 0, poll_seconds: float = 5.0):
-    """Server-Sent Events stream — pushes new run summaries as they arrive."""
+    """Server-Sent Events stream â€” pushes new run summaries as they arrive."""
     async def _generator():
         current = last_id
         while True:
