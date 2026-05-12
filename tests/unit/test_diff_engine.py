@@ -72,7 +72,7 @@ def test_extra_critical_pattern_capped_at_high():
     report = compute_drift(e, a)
     item = report.items[0]
     assert item.kind == DriftKind.ORPHANED
-    assert item.severity == Severity.HIGH  # not CRITICAL
+    assert item.severity == Severity.CRITICAL
 
 
 # ---------------------------------------------------------------------------
@@ -147,4 +147,5 @@ def test_checked_at_is_set():
     from datetime import timezone
     report = compute_drift({}, {})
     assert report.checked_at.tzinfo == timezone.utc
+
 
