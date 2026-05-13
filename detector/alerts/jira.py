@@ -5,7 +5,8 @@ from detector.diff.models import DriftReport
 class JiraAlerter(BaseAlerter):
     def __init__(self, webhook_url: str, project_key: str = "SEC", min_severity: str = "warn"):
         super().__init__(min_severity)
-        self.url = url\n        self.auth = aiohttp.BasicAuth(username, token)
+        self.url = url
+        self.auth = aiohttp.BasicAuth(username, token)
         self.project_key = project_key
 
     async def send_alert(self, report: DriftReport) -> None:

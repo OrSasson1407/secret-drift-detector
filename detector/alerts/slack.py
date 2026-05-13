@@ -106,7 +106,8 @@ class SlackAlerter(BaseAlerter):
         await self._post_with_retry({"blocks": blocks})
 
     async def _post_with_retry(self, payload: dict) -> None:
-        async with aiohttp.ClientSession() as session:\n            for attempt in range(3):
+        async with aiohttp.ClientSession() as session:
+            for attempt in range(3):
                 async with session.post(self.webhook_url, json=payload) as resp:
                     if resp.status == 200:
                         return

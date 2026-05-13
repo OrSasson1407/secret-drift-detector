@@ -1,28 +1,28 @@
 ﻿import base64
 import asyncio
 from datetime import datetime, timezone
-from kubernetes import client, config
 from detector.sources import BaseSource, SecretSnapshot
 
 class KubernetesSource(BaseSource):
     type = "kubernetes"
+    
     def __init__(self, namespace: str = "default", label_selector: str = None):
         self.namespace = namespace or "default"
         self.label_selector = label_selector
-        
-        # Load Kubernetes config (supports both local kubeconfig and in-cluster CI service accounts)
-        try:
-            config.load_incluster_config()
-        except config.ConfigException:
-            try:
-                config.load_kube_config()
-            except Exception as e:
-                print(f"[KubernetesSource] Warning: Could not load k8s config: {e}")
-        
-        self.v1 = client.CoreV1Api()
+        self.client = None
 
-    async def fetch(self):\n        if not self.client:\n            from kubernetes import client, config\n            config.load_kube_config()\n            self.client = client.CoreV1Api()(self) -> SecretSnapshot:
-        # Wrap the synchronous K8s API call in an executor to prevent blocking the async event loop
+    async def fetch(self) -> SecretSnapshot:
+        if not self.client:
+            from kubernetes import client, config
+            try:
+                config.load_incluster_config()
+            except Exception:
+                try:
+                    config.load_kube_config()
+                except Exception:
+                    pass
+            self.client = client.CoreV1Api()
+
         loop = asyncio.get_running_loop()
         kwargs = {"namespace": self.namespace}
         if self.label_selector:
@@ -30,7 +30,7 @@ class KubernetesSource(BaseSource):
             
         secrets_list = await loop.run_in_executor(
             None, 
-            lambda: self.v1.list_namespaced_secret(**kwargs)
+            lambda: self.client.list_namespaced_secret(**kwargs)
         )
         
         extracted_secrets = {}
@@ -38,7 +38,6 @@ class KubernetesSource(BaseSource):
             if secret.data:
                 for key, val in secret.data.items():
                     try:
-                        # K8s secrets are base64 encoded by default
                         decoded = base64.b64decode(val).decode("utf-8")
                         extracted_secrets[f"{secret.metadata.name}/{key}"] = decoded
                     except Exception:
@@ -50,4 +49,3 @@ class KubernetesSource(BaseSource):
             secrets=extracted_secrets,
             metadata={"namespace": self.namespace}
         )
-
