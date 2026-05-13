@@ -5,6 +5,7 @@ from kubernetes import client, config
 from detector.sources import BaseSource, SecretSnapshot
 
 class KubernetesSource(BaseSource):
+    type = "kubernetes"
     def __init__(self, namespace: str = "default", label_selector: str = None):
         self.namespace = namespace or "default"
         self.label_selector = label_selector

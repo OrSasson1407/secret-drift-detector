@@ -1,3 +1,6 @@
+import hmac
+import hashlib
+import time
 ﻿import asyncio
 import json as _json
 import os
@@ -10,7 +13,8 @@ from prometheus_client import make_asgi_app
 import aiohttp
 
 from detector.diff.models import Severity
-from detector.storage.postgres import PostgresStorage
+from detector.storage.history import History
+from detector.diff.models import DriftReport
 
 
 app = FastAPI(title="Secret Drift Detector API", version="0.3.0")
@@ -26,7 +30,7 @@ app.mount("/metrics", make_asgi_app())
 
 # Resolve db path from env so docker / CI can override without code changes
 _DB_PATH = os.environ.get("DRIFT_DB_PATH", "drift_history.db")
-db = PostgresStorage()
+db = History(_DB_PATH)
 
 
 
@@ -35,14 +39,14 @@ db = PostgresStorage()
 @app.get("/api/v1/runs")
 async def list_runs(limit: int = 50, only_drift: bool = False):
     """List recent runs. Filter to drifting runs only with only_drift=true."""
-    runs = await db.list_runs(limit=limit, only_drift=only_drift)
+    runs = db.list_runs(limit=limit, only_drift=only_drift)
     return [asdict(r) for r in runs]
 
 
 @app.get("/api/v1/runs/{run_id}")
 async def get_run(run_id: int):
     """Full detail for a single run including the complete drift report."""
-    run = await db.get_report(run_id)
+    run = db.get_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
     return run
@@ -54,9 +58,10 @@ async def get_run_items(
     min_severity: str = Query(default="info", pattern="^(info|warn|high|critical)$"),
 ):
     """Drift items for a specific run, filtered by minimum severity."""
-    report = await db.get_report(run_id)
-    if not report:
+    run_dict = db.get_run(run_id)
+    if not run_dict:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    report = DriftReport(**run_dict["report_json"])
     threshold = Severity(min_severity)
     items     = report.items_at_or_above(threshold)
     return [item.model_dump() for item in items]
@@ -67,13 +72,13 @@ async def get_run_items(
 @app.get("/api/v1/trend")
 async def drift_trend(limit: int = 30):
     """Drift counts over the last N runs - useful for dashboard charting."""
-    return await db.drift_trend(limit=limit)
+    return db.drift_trend(limit=limit)
 
 
 @app.get("/api/v1/stats")
 async def drift_stats():
     """Aggregate statistics: total runs, drift rate, counts by severity."""
-    return await db.stats()
+    return db.stats()
 
 
 # ?? Latest ????????????????????????????????????????????????????????????????????
@@ -81,10 +86,10 @@ async def drift_stats():
 @app.get("/api/v1/latest")
 async def latest_run():
     """Return the most recent drift report, or 204 if no runs exist yet."""
-    report = await db.get_latest_report()
-    if not report:
-        raise HTTPException(status_code=204, detail="No runs recorded yet")
-    return report.model_dump(mode="json")
+    runs = db.list_runs(limit=1)
+    if not runs:
+        raise HTTPException(status_code=404, detail="No runs recorded yet")
+    return db.get_run(runs[0].id)
 
 
 # ?? SSE live feed ?????????????????????????????????????????????????????????????
@@ -95,10 +100,12 @@ async def stream_drift(last_id: int = 0, poll_seconds: float = 5.0):
     async def _generator():
         current = last_id
         while True:
-            runs = await db.list_runs(limit=1)
-            if runs and runs[0].id > current:
-                current = runs[0].id
-                payload  = _json.dumps(asdict(runs[0]), default=str)
+            runs = db.list_runs(limit=20)
+            new_runs = [r for r in runs if r.id > current]
+            for r in reversed(new_runs):
+                current = r.id
+                from dataclasses import asdict
+                payload = _json.dumps(asdict(r), default=str)
                 yield f"data: {payload}\n\n"
             await asyncio.sleep(poll_seconds)
 
@@ -113,6 +120,19 @@ async def stream_drift(last_id: int = 0, poll_seconds: float = 5.0):
 @app.post("/api/v1/slack/interactions")
 async def slack_interactions(request: Request):
     """Handle Interactive Button Clicks from Slack"""
+    body = await request.body()
+    timestamp = request.headers.get("X-Slack-Request-Timestamp")
+    signature = request.headers.get("X-Slack-Signature")
+    secret = os.environ.get("SLACK_SIGNING_SECRET")
+    
+    if secret and timestamp and signature:
+        if abs(time.time() - int(timestamp)) > 60 * 5:
+            raise HTTPException(status_code=400, detail="Invalid timestamp")
+        sig_basestring = f"v0:{timestamp}:{body.decode('utf-8')}"
+        my_sig = "v0=" + hmac.new(secret.encode(), sig_basestring.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(my_sig, signature):
+            raise HTTPException(status_code=401, detail="Invalid signature")
+            
     form = await request.form()
     payload_str = form.get("payload")
     
@@ -171,11 +191,14 @@ class ConnectionManager:
         self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
+        dead = []
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
-            except:
-                pass
+            except Exception:
+                dead.append(connection)
+        for c in dead:
+            self.disconnect(c)
 
 ws_manager = ConnectionManager()
 
@@ -184,9 +207,11 @@ async def websocket_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
     try:
         while True:
-            data = await websocket.receive_json()
-            # Broadcast state changes (e.g. Snooze/Ack) so all connected React clients sync instantly
-            await ws_manager.broadcast(data)
+            try:
+                data = await websocket.receive_json()
+                await ws_manager.broadcast(data)
+            except Exception:
+                break
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
 

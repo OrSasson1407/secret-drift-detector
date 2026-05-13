@@ -3,7 +3,7 @@ import hashlib
 import random
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from detector.server.metrics import SOURCE_FETCH_SUCCESS, SOURCE_FETCH_ERROR
 
 
@@ -27,7 +27,7 @@ class SecretSnapshot(BaseModel):
     source:     str
     fetched_at: datetime
     secrets:    dict[str, str]
-    metadata:   dict = {}
+    metadata:   dict = Field(default_factory=dict)
 
 
 class BaseSource(ABC):
@@ -68,10 +68,10 @@ class BaseSource(ABC):
                     sleep_max  = min(cap, delay * (2 ** (attempt - 1)))
                     sleep_time = random.uniform(0, sleep_max)   # full jitter
                     await asyncio.sleep(sleep_time)
-            SOURCE_FETCH_ERROR.labels(source_name=self.label).inc()
-            raise SourceError(
+        SOURCE_FETCH_ERROR.labels(source_name=self.label).inc()
+        raise SourceError(
             source_name=self.label,
-            cause=last_exc,   # type: ignore[arg-type]
+            cause=last_exc,
             attempts=max_retries,
         ) from last_exc
 

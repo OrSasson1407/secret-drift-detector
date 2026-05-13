@@ -23,7 +23,7 @@ class PagerDutyAlerter(BaseAlerter):
             "event_action": "trigger",
             "payload": {
                 "summary":  f"Secret Drift: {len(items)} item(s) in {', '.join(report.targets) or 'unknown'}",
-                "severity": "critical",
+                "severity": report.max_severity.value if report.max_severity else "info",
                 "source":   ", ".join(report.targets) or "secret-drift-detector",
                 "timestamp": report.checked_at.isoformat(),
                 "custom_details": {

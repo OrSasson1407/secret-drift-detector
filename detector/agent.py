@@ -23,6 +23,8 @@ from detector.server       import metrics
 from detector.alerts.slack     import SlackAlerter
 from detector.alerts.pagerduty import PagerDutyAlerter
 from detector.alerts.webhook   import WebhookAlerter
+from detector.alerts.jira import JiraAlerter
+from detector.alerts.stdout import StdoutAlerter
 from detector.remediation.trigger import RemediationManager
 from detector.server.metrics import REMEDIATION_TRIGGERED
 
@@ -100,6 +102,13 @@ class Agent:
             self.alerters.append(PagerDutyAlerter(
                 cfg.pagerduty.integration_key, cfg.pagerduty.min_severity,
             ))
+        
+        if hasattr(cfg, "jira") and getattr(cfg.jira, "enabled", False):
+            self.alerters.append(JiraAlerter(
+                cfg.jira.url, cfg.jira.username, cfg.jira.token, cfg.jira.project, cfg.jira.min_severity
+            ))
+        if hasattr(cfg, "stdout") and getattr(cfg.stdout, "enabled", False):
+            self.alerters.append(StdoutAlerter(min_severity=cfg.stdout.min_severity))
         if cfg.webhook.enabled:
             self.alerters.append(WebhookAlerter(
                 cfg.webhook.url, cfg.webhook.min_severity, cfg.webhook.headers,
@@ -125,11 +134,11 @@ class Agent:
 
         # Collect rotation deadlines from source metadata
         stale_keys: set[str] = set()
-        max_age_map: dict[str, int] = {
-            s.label: s.max_age_days
-            for s in self.sources
-            if hasattr(s, "max_age_days") and s.max_age_days
-        }
+        max_age_map: dict[str, int] = {}
+        for s in self.sources:
+            if hasattr(s, "max_age_days") and s.max_age_days:
+                max_age_map[s.label] = s.max_age_days
+                max_age_map[s.type] = s.max_age_days
 
         for src_obj, snap in zip(self.sources, snapshots):
             if isinstance(snap, Exception):
@@ -141,7 +150,7 @@ class Agent:
                     all_source_keys.add(key)
                     # Check rotation age via metadata timestamps
                     if snap.source in max_age_map:
-                        created = snap.metadata.get("created_time", {}).get(key)
+                        created = snap.metadata.get("created_time", {}).get(key) or snap.metadata.get("last_modified", {}).get(key)
                         if created:
                             from datetime import datetime, timezone
                             try:
@@ -153,7 +162,10 @@ class Agent:
                                     stale_keys.add(key)
                             except Exception:
                                 pass
-                expected.update(snap.secrets)
+                for k, v in snap.secrets.items():
+                    if k in expected and expected[k] != v:
+                        log.warning("secret_collision", key=k, overwritten_by=snap.source)
+                    expected[k] = v
                 source_names.append(snap.source)
 
         if failed_sources:
@@ -198,10 +210,13 @@ class Agent:
         report.run_id = run_id
 
         if report.has_drift:
-            await asyncio.gather(
+            alert_res = await asyncio.gather(
                 *[alerter.send_alert(report) for alerter in self.alerters],
                 return_exceptions=True,
             )
+            for res, alerter in zip(alert_res, self.alerters):
+                if isinstance(res, Exception):
+                    log.error("alerter_failed", alerter=alerter.__class__.__name__, error=str(res))
             log.warning("drift_detected",
                         run_id=run_id,
                         items=len(report.items),
@@ -230,12 +245,15 @@ class Agent:
             except (NotImplementedError, OSError):
                 pass
 
-        while not self._stop.is_set():
-            await self.run_once()
-            try:
-                await asyncio.wait_for(self._stop.wait(), timeout=interval)
-            except asyncio.TimeoutError:
-                pass
+        try:
+            while not self._stop.is_set():
+                await self.run_once()
+                try:
+                    await asyncio.wait_for(self._stop.wait(), timeout=interval)
+                except asyncio.TimeoutError:
+                    pass
+        except KeyboardInterrupt:
+            self._stop.set()
 
         log.info("watch_stopped")
 

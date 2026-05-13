@@ -4,9 +4,10 @@ from google.cloud import secretmanager
 from detector.sources import BaseSource, SecretSnapshot
 
 class GCPSource(BaseSource):
-    def __init__(self, project_id: str = None):
+    type = "gcp"
+    def __init__(self, project: str = None):
         # Fallback to a placeholder if not provided, allowing instantiation in tests/CI
-        self.project_id = project_id or "default-gcp-project" 
+        self.project = project or "default-gcp-project" 
         try:
             self.client = secretmanager.SecretManagerServiceClient()
         except Exception as e:
@@ -25,12 +26,12 @@ class GCPSource(BaseSource):
         loop = asyncio.get_running_loop()
         
         def _fetch_secrets():
-            parent = f"projects/{self.project_id}"
+            parent = f"projects/{self.project}"
             secrets_dict = {}
             try:
                 for secret in self.client.list_secrets(request={"parent": parent}):
                     secret_name = secret.name.split('/')[-1]
-                    version_path = self.client.secret_version_path(self.project_id, secret_name, "latest")
+                    version_path = self.client.secret_version_path(self.project, secret_name, "latest")
                     try:
                         response = self.client.access_secret_version(request={"name": version_path})
                         payload = response.payload.data.decode("UTF-8")
@@ -48,5 +49,5 @@ class GCPSource(BaseSource):
             source=self.label,
             fetched_at=datetime.now(timezone.utc),
             secrets=extracted_secrets,
-            metadata={"project_id": self.project_id}
+            metadata={"project": self.project}
         )

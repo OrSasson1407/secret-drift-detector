@@ -1,5 +1,8 @@
 ﻿import os
-import tomllib
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 

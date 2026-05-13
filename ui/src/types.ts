@@ -5,7 +5,7 @@
   detail: string;
 }
 
-export interface Run {
+export interface RunSummary {
   id: number;
   timestamp: string;
   has_drift: boolean;

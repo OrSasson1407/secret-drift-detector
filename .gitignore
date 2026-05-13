@@ -42,3 +42,9 @@ ui/.env
 # OS
 .DS_Store
 Thumbs.db
+
+# Prevent production env leak
+.env.production
+
+# Prevent committing db files
+drift_history.db

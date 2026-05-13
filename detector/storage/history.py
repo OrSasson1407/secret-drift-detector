@@ -27,6 +27,7 @@ def _compute_hash(prev_hash: str | None, report_json: str) -> str:
 class History:
     def __init__(self, db_path: str = "drift_history.db"):
         self.db_path = db_path
+        self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -139,7 +140,7 @@ class History:
         rows = list(reversed(rows))
 
         results: list[dict] = []
-        running_prev: str | None = None
+        running_prev: str | None = rows[0]["prev_hash"] if rows else None
 
         for i, row in enumerate(rows):
             stored_hash   = row["report_hash"]
