@@ -297,7 +297,7 @@ def init_wizard(output, force):
         token_var  = Prompt.ask("  Token env var", default="DOPPLER_TOKEN")
         source_lines += [
             f'project    = "{project}"',
-            f'config     = "{config_env}"',
+            f'config_env = "{config_env}"',
             f'token      = "env:{token_var}"',
         ]
 
@@ -535,3 +535,4 @@ def scan(config, ci, fail_on_drift):
 
 if __name__ == "__main__":
     cli()
+

@@ -34,11 +34,15 @@ class SourceConfig(BaseModel):
 
     @model_validator(mode="after")
     def check_required_fields(self) -> "SourceConfig":
+        # BUG 10 FIX: Added kubernetes, gcp, and secrets_manager to required fields dictionary
         required: dict[str, list[str]] = {
-            "vault":   ["addr", "path"],
-            "ssm":     ["prefix", "region"],
-            "doppler": ["project", "config_env"],
-            "dotenv":  ["path"],
+            "vault":           ["addr", "path"],
+            "ssm":             ["prefix", "region"],
+            "doppler":         ["project", "config_env"],
+            "dotenv":          ["path"],
+            "kubernetes":      ["namespace"],
+            "secrets_manager": ["region"],
+            "gcp":             ["project"],
         }
         missing = [f for f in required.get(self.type, []) if not getattr(self, f)]
         if missing:
@@ -92,6 +96,26 @@ class WebhookAlertConfig(BaseModel):
         return _resolve_env(v)
 
 
+# BUG 09 FIX: Implemented JiraAlertConfig and StdoutAlertConfig
+class JiraAlertConfig(BaseModel):
+    enabled:      bool = False
+    url:          str | None = None
+    username:     str | None = None
+    token:        str | None = None
+    project:      str | None = None
+    min_severity: str = "warn"
+
+    @field_validator("token", mode="before")
+    @classmethod
+    def resolve(cls, v):
+        return _resolve_env(v)
+
+
+class StdoutAlertConfig(BaseModel):
+    enabled:      bool = False
+    min_severity: str = "info"
+
+
 class RemediationConfig(BaseModel):
     enabled: bool = False
 
@@ -99,6 +123,9 @@ class AlertsConfig(BaseModel):
     slack:      SlackAlertConfig      = Field(default_factory=SlackAlertConfig)
     pagerduty:  PagerDutyAlertConfig  = Field(default_factory=PagerDutyAlertConfig)
     webhook:    WebhookAlertConfig    = Field(default_factory=WebhookAlertConfig)
+    # BUG 09 FIX: Exposed the Jira and Stdout settings
+    jira:       JiraAlertConfig       = Field(default_factory=JiraAlertConfig)
+    stdout:     StdoutAlertConfig     = Field(default_factory=StdoutAlertConfig)
 
 
 class AgentConfig(BaseModel):
@@ -109,7 +136,7 @@ class AgentConfig(BaseModel):
     retry_delay:      float = 2.0
     timeout_seconds:  float = 10.0
     db_path:          str   = "drift_history.db"
-    enable_entropy:   bool  = True   # Shannon entropy weak-value scanning
+    enable_entropy:   bool  = True   
 
 
 class DetectorConfig(BaseModel):
@@ -128,4 +155,3 @@ class DetectorConfig(BaseModel):
             if "config" in src and "config_env" not in src:
                 src["config_env"] = src.pop("config")
         return cls(**data)
-

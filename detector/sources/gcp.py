@@ -17,7 +17,7 @@ class GCPSource(BaseSource):
     async def fetch(self) -> SecretSnapshot:
         if not self.client:
             return SecretSnapshot(
-                source=self.label,
+                source=f"gcp:{self.project}",
                 fetched_at=datetime.now(timezone.utc),
                 secrets={},
                 metadata={"error": "GCP Client not initialized"}
@@ -46,8 +46,9 @@ class GCPSource(BaseSource):
         extracted_secrets = await loop.run_in_executor(None, _fetch_secrets)
 
         return SecretSnapshot(
-            source=self.label,
+            source=f"gcp:{self.project}",
             fetched_at=datetime.now(timezone.utc),
             secrets=extracted_secrets,
             metadata={"project": self.project}
         )
+

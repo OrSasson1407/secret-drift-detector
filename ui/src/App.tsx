@@ -5,7 +5,7 @@ import type { Run } from './types';
 
 export function App() {
   const [runs, setRuns] = useState<Run[]>([]);
-  const wsMessage = useWebSocket('ws://localhost:8000/api/v1/ws');
+  const wsMessage = useWebSocket(`${import.meta.env.VITE_API_URL?.replace("http", "ws") || "ws://localhost:8000"}/api/v1/ws`);
 
   // Polling Fetch Loop
   useEffect(() => {
@@ -19,7 +19,7 @@ export function App() {
             return data.map((run: Run) => {
               const meta = existingMeta.get(run.id);
               if (run.has_drift && !meta?.jira) {
-                run.jira_task = "SEC-" + (Math.floor(Math.random() * 900) + 100);
+                ;
               } else if (meta?.jira) {
                 run.jira_task = meta.jira;
               }
@@ -56,7 +56,7 @@ export function App() {
     const payload = {
       actions: [{ action_id: 'ack_drift', value: id.toString() }],
       user: { id: "DashboardUser" },
-      response_url: "http://localhost:8000/api/v1/health" // mock fallback
+      response_url: `${import.meta.env.VITE_API_URL || ""}/api/v1/slack/interactions` // mock fallback
     };
 
     await fetch('http://localhost:8000/api/v1/slack/interactions', {
@@ -67,7 +67,7 @@ export function App() {
     
     // Broadcast directly to the WS to sync other open browser tabs immediately
     try {
-      const ws = new WebSocket('ws://localhost:8000/api/v1/ws');
+      const ws = new WebSocket(`${import.meta.env.VITE_API_URL?.replace("http", "ws") || "ws://localhost:8000"}/api/v1/ws`);
       ws.onopen = () => {
         ws.send(JSON.stringify(payload));
         ws.close();

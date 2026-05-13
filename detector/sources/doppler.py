@@ -86,3 +86,4 @@ class DopplerSource(BaseSource):
             secrets=secrets,
             metadata={"key_count": len(secrets)},
         )
+

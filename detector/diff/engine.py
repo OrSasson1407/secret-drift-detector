@@ -119,7 +119,7 @@ def compute_drift(
 
     # ── Stale secrets ──────────────────────────────────────
     for key in sorted(stale):
-        if key in expected or key in actual:
+        if key not in actual:
             kind = DriftKind.STALE_SECRET
             items.append(DriftItem(
                 key=key,
@@ -156,3 +156,4 @@ def compute_drift(
         sources=sources or [],
         targets=targets or [],
     )
+

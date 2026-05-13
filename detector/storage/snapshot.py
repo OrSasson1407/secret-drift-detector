@@ -30,10 +30,7 @@ _EXTRA_COLS = [
 ]
 
 
-def _compute_hash(prev_hash: str | None, report_json: str) -> str:
-    """SHA-256(prev_hash + report_json) — links each row to the previous one."""
-    data = (prev_hash or "") + report_json
-    return hashlib.sha256(data.encode("utf-8")).hexdigest()
+from detector.storage.history import _compute_hash
 
 
 class Storage:
@@ -121,3 +118,4 @@ class Storage:
                 (keep,),
             )
             return cur.rowcount
+

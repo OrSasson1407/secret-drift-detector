@@ -1,4 +1,5 @@
-﻿import asyncio
+﻿from datetime import datetime, timezone
+import asyncio
 import signal
 import structlog
 
@@ -152,13 +153,13 @@ class Agent:
                     if snap.source in max_age_map:
                         created = snap.metadata.get("created_time", {}).get(key) or snap.metadata.get("last_modified", {}).get(key)
                         if created:
-                            from datetime import datetime, timezone
+
                             try:
                                 age_days = (
                                     datetime.now(timezone.utc) -
                                     datetime.fromisoformat(created.replace("Z", "+00:00"))
                                 ).days
-                                if age_days > max_age_map[snap.source]:
+                                if age_days > max_age_map.get(snap.source.split(':')[0], None):
                                     stale_keys.add(key)
                             except Exception:
                                 pass
@@ -222,7 +223,7 @@ class Agent:
                         items=len(report.items),
                         max_severity=str(report.max_severity))
             
-            if hasattr(self, 'remediation') and self.remediation.enabled:
+            if self.remediation.enabled:
                 await self.remediation.trigger(report)
                 REMEDIATION_TRIGGERED.inc()
         else:
@@ -261,4 +262,5 @@ class Agent:
     @classmethod
     def from_config(cls, config_path: str) -> "Agent":
         return cls(DetectorConfig.load_from_file(config_path))
+
 

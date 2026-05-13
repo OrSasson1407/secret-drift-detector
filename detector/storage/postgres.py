@@ -1,31 +1,34 @@
-﻿import os
-import json
+﻿import json
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from detector.diff.models import DriftReport
 
 class PostgresStorage:
-    """
-    Distributed PostgreSQL storage layer. 
-    Replaces local file storage so multiple agents can report to a single dashboard.
-    """
-    def __init__(self, connection_uri: str = None):
-        self.uri = connection_uri or os.environ.get("DRIFT_DB_URI", "")
-        
-    async def connect(self):
-        print(f"[Storage] Connecting to distributed DB: {self.uri}")
-        
-    async def get_report(self, run_id: int):
-        return None
-        
-    async def get_latest_report(self):
-        return None
-        
-    async def list_runs(self, limit: int = 50, only_drift: bool = False):
-        return []
+    def __init__(self, connection_string: str):
+        self.conn_str = connection_string
+        self._init_db()
 
-    async def drift_trend(self, limit: int = 30):
-        return []
+    def _init_db(self):
+        with psycopg2.connect(self.conn_str) as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS drift_runs (
+                        id SERIAL PRIMARY KEY,
+                        timestamp TIMESTAMPTZ DEFAULT NOW(),
+                        report_json JSONB NOT NULL,
+                        prev_hash TEXT
+                    )
+                ''')
+            conn.commit()
 
-    async def stats(self):
-        return {"total_runs": 0, "drift_rate": 0.0}
-        
-    async def save_report(self, run_id: int, report_json: str):
-        print(f"[Storage] Saved Run {run_id} to PostgreSQL")
+    def save_report(self, report: DriftReport):
+        with psycopg2.connect(self.conn_str) as conn:
+            with conn.cursor() as cur:
+                report_json = report.model_dump_json()
+                cur.execute(
+                    "INSERT INTO drift_runs (report_json) VALUES (%s) RETURNING id",
+                    (report_json,)
+                )
+                run_id = cur.fetchone()[0]
+            conn.commit()
+        return run_id

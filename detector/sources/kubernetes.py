@@ -21,7 +21,7 @@ class KubernetesSource(BaseSource):
         
         self.v1 = client.CoreV1Api()
 
-    async def fetch(self) -> SecretSnapshot:
+    async def fetch(self):\n        if not self.client:\n            from kubernetes import client, config\n            config.load_kube_config()\n            self.client = client.CoreV1Api()(self) -> SecretSnapshot:
         # Wrap the synchronous K8s API call in an executor to prevent blocking the async event loop
         loop = asyncio.get_running_loop()
         kwargs = {"namespace": self.namespace}
@@ -45,8 +45,9 @@ class KubernetesSource(BaseSource):
                         pass
                         
         return SecretSnapshot(
-            source=self.label,
+            source=f"kubernetes:{self.namespace}",
             fetched_at=datetime.now(timezone.utc),
             secrets=extracted_secrets,
             metadata={"namespace": self.namespace}
         )
+
