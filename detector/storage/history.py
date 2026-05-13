@@ -42,14 +42,16 @@ class History:
         runs = []
         for row in reversed(data):
             rep = row.get("report_json", {})
-            if only_drift and not rep.get("has_drift"): continue
+            items = rep.get("items", [])
+            has_drift = len(items) > 0
+            if only_drift and not has_drift: continue
             runs.append(RunSummary(
                 id=row.get("id"),
                 timestamp=row.get("timestamp"),
                 expected_count=rep.get("expected_count", 0),
                 actual_count=rep.get("actual_count", 0),
-                drift_count=len(rep.get("items", [])),
-                has_drift=rep.get("has_drift", False),
+                drift_count=len(items),
+                has_drift=has_drift,
                 max_severity=rep.get("max_severity"),
                 sources=rep.get("sources", []),
                 targets=rep.get("targets", [])
@@ -63,11 +65,12 @@ class History:
             if row.get("id") == run_id:
                 res = dict(row)
                 rep = row.get("report_json", {})
+                items = rep.get("items", [])
                 res.update({
                     "expected_count": rep.get("expected_count", 0),
                     "actual_count": rep.get("actual_count", 0),
-                    "has_drift": 1 if rep.get("has_drift") else 0,
-                    "drift_count": len(rep.get("items", [])),
+                    "has_drift": 1 if len(items) > 0 else 0,
+                    "drift_count": len(items),
                     "max_severity": rep.get("max_severity"),
                     "sources": rep.get("sources", []),
                     "targets": rep.get("targets", [])
@@ -80,10 +83,11 @@ class History:
         trend = []
         for row in list(reversed(data))[:limit]:
             rep = row.get("report_json", {})
+            items = rep.get("items", [])
             trend.append({
                 "timestamp": row.get("timestamp"),
-                "drift_count": len(rep.get("items", [])),
-                "has_drift": 1 if rep.get("has_drift") else 0,
+                "drift_count": len(items),
+                "has_drift": 1 if len(items) > 0 else 0,
                 "max_severity": rep.get("max_severity")
             })
         return list(reversed(trend))
@@ -91,7 +95,7 @@ class History:
     def stats(self):
         data = _read_db(self.db_path)
         total = len(data)
-        drifts = sum(1 for row in data if row.get("report_json", {}).get("has_drift"))
+        drifts = sum(1 for row in data if len(row.get("report_json", {}).get("items", [])) > 0)
         return {
             "total_runs": total,
             "drift_rate": (drifts / total) if total > 0 else 0.0,

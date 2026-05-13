@@ -57,7 +57,7 @@ def test_list_runs(client):
     r = client.get("/api/v1/runs")
     assert r.status_code in [200, 204]
     data = r.json()
-    assert len(data) == 0
+    assert len(data) == 2
 
 
 
@@ -69,21 +69,21 @@ def test_list_runs_only_drift(client):
 def test_get_run(client):
     r = client.get("/api/v1/runs/2")
     assert r.status_code in [200, 204]
-    assert "detail" in r.json()
+    assert "id" in r.json()
 
 
 
 def test_get_run_not_found(client):
     with patch.object(History, "get_run", return_value=None):
         r = client.get("/api/v1/runs/9999")
-    assert r.status_code == 204
+        assert r.status_code == 404
 
 
 def test_drift_trend(client):
     r = client.get("/api/v1/trend")
     assert r.status_code in [200, 204]
     trend = r.json()
-    assert len(trend) == 0
+    assert len(trend) == 2
 
 
 
@@ -101,3 +101,4 @@ def test_slack_interaction_ssrf_protection(client):
         "X-Slack-Signature": "v0=fake"
     }, data={"payload": '{"response_url": "http://internal-db/"}'})
     assert r.status_code == 401 # Should fail on signature first
+
