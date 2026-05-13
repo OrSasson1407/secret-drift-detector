@@ -107,7 +107,7 @@ def test_mixed_drift(sample_expected, sample_actual_with_drift):
     kinds = {i.kind for i in report.items}
     assert DriftKind.MISSING_IN_RUNTIME in kinds
     assert DriftKind.ORPHANED   in kinds
-    assert DriftKind.VALUE_CHANGED      in kinds
+    assert DriftKind.VALUE_CHANGED in kinds
 
 
 def test_max_severity(sample_expected, sample_actual_with_drift):
@@ -147,5 +147,6 @@ def test_checked_at_is_set():
     from datetime import timezone
     report = compute_drift({}, {})
     assert report.checked_at.tzinfo == timezone.utc
+
 
 

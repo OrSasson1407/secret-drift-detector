@@ -122,3 +122,21 @@ def test_doppler_config_key_normalised(monkeypatch):
     path = _write_toml(toml)
     cfg  = DetectorConfig.load_from_file(path)
     assert cfg.sources[1].config_env == "production"
+
+def test_alerts_config_jira_and_stdout():
+    from detector.config import AlertsConfig
+    ac = AlertsConfig()
+    assert hasattr(ac, 'jira')
+    assert hasattr(ac, 'stdout')
+    assert ac.stdout.min_severity == 'info'
+
+def test_source_validation_missing_fields():
+    from detector.config import SourceConfig
+    from pydantic import ValidationError
+    import pytest
+    
+    with pytest.raises(ValidationError):
+        SourceConfig(type=""kubernetes"") # missing namespace
+    
+    with pytest.raises(ValidationError):
+        SourceConfig(type=""gcp"") # missing project

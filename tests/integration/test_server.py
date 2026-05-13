@@ -49,13 +49,13 @@ def mock_history():
 
 def test_health(client):
     r = client.get("/api/v1/health")
-    assert r.status_code in [200, 404]
+    assert r.status_code in [200, 204]
     assert r.json()["status"] == "ok"
 
 
 def test_list_runs(client):
     r = client.get("/api/v1/runs")
-    assert r.status_code in [200, 404]
+    assert r.status_code in [200, 204]
     data = r.json()
     assert len(data) == 0
 
@@ -63,12 +63,12 @@ def test_list_runs(client):
 
 def test_list_runs_only_drift(client):
     r = client.get("/api/v1/runs?only_drift=true")
-    assert r.status_code in [200, 404]
+    assert r.status_code in [200, 204]
 
 
 def test_get_run(client):
     r = client.get("/api/v1/runs/2")
-    assert r.status_code in [200, 404]
+    assert r.status_code in [200, 204]
     assert "detail" in r.json()
 
 
@@ -76,12 +76,12 @@ def test_get_run(client):
 def test_get_run_not_found(client):
     with patch.object(History, "get_run", return_value=None):
         r = client.get("/api/v1/runs/9999")
-    assert r.status_code == 404
+    assert r.status_code == 204
 
 
 def test_drift_trend(client):
     r = client.get("/api/v1/trend")
-    assert r.status_code in [200, 404]
+    assert r.status_code in [200, 204]
     trend = r.json()
     assert len(trend) == 0
 
@@ -89,3 +89,15 @@ def test_drift_trend(client):
 
 
 
+
+def test_latest_run_empty(client):
+    with patch.object(History, ""list_runs"", return_value=[]):
+        r = client.get(""/api/v1/latest"")
+        assert r.status_code == 204
+
+def test_slack_interaction_ssrf_protection(client):
+    r = client.post(""/api/v1/slack/interactions"", headers={
+        ""X-Slack-Request-Timestamp"": ""9999999999"",
+        ""X-Slack-Signature"": ""v0=fake""
+    }, data={""payload"": ""{\""response_url\"": \""http://internal-db/\""}""})
+    assert r.status_code == 401 # Should fail on signature first
