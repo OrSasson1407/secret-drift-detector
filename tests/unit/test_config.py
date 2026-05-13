@@ -136,7 +136,7 @@ def test_source_validation_missing_fields():
     import pytest
     
     with pytest.raises(ValidationError):
-        SourceConfig(type=""kubernetes"") # missing namespace
+        SourceConfig(type="kubernetes") # missing namespace
     
     with pytest.raises(ValidationError):
-        SourceConfig(type=""gcp"") # missing project
+        SourceConfig(type="gcp") # missing project

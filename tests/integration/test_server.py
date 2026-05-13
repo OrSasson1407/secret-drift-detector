@@ -91,13 +91,13 @@ def test_drift_trend(client):
 
 
 def test_latest_run_empty(client):
-    with patch.object(History, ""list_runs"", return_value=[]):
-        r = client.get(""/api/v1/latest"")
+    with patch.object(History, "list_runs", return_value=[]):
+        r = client.get("/api/v1/latest")
         assert r.status_code == 204
 
 def test_slack_interaction_ssrf_protection(client):
-    r = client.post(""/api/v1/slack/interactions"", headers={
-        ""X-Slack-Request-Timestamp"": ""9999999999"",
-        ""X-Slack-Signature"": ""v0=fake""
-    }, data={""payload"": ""{\""response_url\"": \""http://internal-db/\""}""})
+    r = client.post("/api/v1/slack/interactions", headers={
+        "X-Slack-Request-Timestamp": "9999999999",
+        "X-Slack-Signature": "v0=fake"
+    }, data={"payload": '{"response_url": "http://internal-db/"}'})
     assert r.status_code == 401 # Should fail on signature first
