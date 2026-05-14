@@ -15,7 +15,7 @@ export const RunRow: React.FC<Props> = ({ run, onAcknowledge }) => {
         
         {run.has_drift ? (
           <span className="px-2.5 py-1 text-xs font-semibold bg-red-900/50 text-red-300 rounded-full border border-red-800/50">
-            Drift Detected: {run.max_severity.toUpperCase()}
+            Drift Detected: {(run.max_severity || "info").toUpperCase()}
           </span>
         ) : (
           <span className="px-2.5 py-1 text-xs font-semibold bg-emerald-900/50 text-emerald-300 rounded-full border border-emerald-800/50">

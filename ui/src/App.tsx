@@ -10,9 +10,10 @@ export function App() {
   // Polling Fetch Loop
   useEffect(() => {
     const fetchRuns = () => {
-      fetch('http://localhost:8000/api/v1/runs?limit=15')
+      fetch('http://localhost:8000/api/v1/runs?limit=15', { headers: { 'X-API-Key': 'test-secret-key' } })
         .then(res => res.json())
         .then(data => {
+          if (!Array.isArray(data)) return;
           setRuns(prev => {
             // Preserve Jira tasks and Ack states across network polls
             const existingMeta = new Map(prev.map(r => [r.id, { jira: r.jira_task, ack: r.acknowledged }]));
@@ -59,11 +60,7 @@ export function App() {
       response_url: `${import.meta.env.VITE_API_URL || ""}/api/v1/slack/interactions` // mock fallback
     };
 
-    await fetch('http://localhost:8000/api/v1/slack/interactions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ payload: JSON.stringify(payload) })
-    }).catch(console.error);
+
     
     // Broadcast directly to the WS to sync other open browser tabs immediately
     try {
