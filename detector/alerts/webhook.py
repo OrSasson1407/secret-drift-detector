@@ -1,4 +1,5 @@
-﻿import aiohttp
+import aiohttp
+from aiohttp import ClientTimeout
 from detector.alerts import BaseAlerter
 from detector.diff.models import DriftReport
 

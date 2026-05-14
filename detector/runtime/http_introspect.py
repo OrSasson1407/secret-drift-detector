@@ -1,4 +1,4 @@
-﻿import aiohttp
+import aiohttp
 from detector.runtime import BaseProber
 
 

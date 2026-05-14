@@ -1,1 +1,1 @@
-﻿from .trigger import RemediationManager
+from .trigger import RemediationManager

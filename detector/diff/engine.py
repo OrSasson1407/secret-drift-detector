@@ -1,4 +1,4 @@
-﻿from detector.diff.models import DriftReport, DriftItem, DriftKind, Severity
+from detector.diff.models import DriftReport, DriftItem, DriftKind, Severity
 from detector.diff.scorer import (
     score_severity,
     remediation_hint,

@@ -1,16 +1,21 @@
-﻿import aiohttp
+import aiohttp
 from detector.alerts import BaseAlerter
 from detector.diff.models import DriftReport
 
 class JiraAlerter(BaseAlerter):
-    def __init__(self, webhook_url: str, project_key: str = "SEC", min_severity: str = "warn"):
-        super().__init__(min_severity)
+    def __init__(self, url: str, username: str, token: str, project_key: str, min_severity: str = "warn"):
         self.url = url
-        self.auth = aiohttp.BasicAuth(username, token)
+        self.username = username
+        self.token = token
         self.project_key = project_key
+        self.min_severity = min_severity
+
+    
+
+    
 
     async def send_alert(self, report: DriftReport) -> None:
-        if not self.webhook_url or not report.has_drift:
+        if not self.url or not report.has_drift:
             return
 
         items = self._filter_items(report)
@@ -32,7 +37,7 @@ class JiraAlerter(BaseAlerter):
         }
         
         async with aiohttp.ClientSession() as session:
-            async with session.post(self.webhook_url, json=payload) as resp:
+            async with session.post(self.url, json=payload) as resp:
                 if resp.status >= 400:
                     print(f"[JiraAlerter] Failed to create task: {await resp.text()}")
 

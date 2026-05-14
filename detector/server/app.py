@@ -1,4 +1,4 @@
-﻿import hmac
+import hmac
 import hashlib
 import time
 import asyncio
@@ -7,7 +7,8 @@ import os
 from dataclasses import asdict
 from typing import List
 
-from fastapi import FastAPI, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, Security, Depends
+from fastapi.security import APIKeyHeader, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from prometheus_client import make_asgi_app
@@ -35,9 +36,20 @@ app.mount("/metrics", make_asgi_app())
 _DB_PATH = os.environ.get("DRIFT_DB_PATH", "drift_history.db")
 db = History(_DB_PATH)
 
+from fastapi import Security, Depends
+from fastapi.security import APIKeyHeader
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+async def verify_api_key(api_key: str = Security(api_key_header)):
+    expected = os.environ.get("DRIFT_API_KEY")
+    if expected and api_key != expected:
+        raise HTTPException(status_code=403, detail="Invalid API Key")
+    return api_key
+
+
 
 @app.get("/api/v1/runs")
-async def list_runs(limit: int = 50, only_drift: bool = False):
+async def list_runs(api_key: str = Depends(verify_api_key), limit: int = 50, only_drift: bool = False):
     runs = db.list_runs(limit=limit, only_drift=only_drift)
     return [asdict(r) for r in runs]
 
@@ -121,7 +133,7 @@ async def slack_interactions(request: Request):
     
     # BUG 02 FIX: Ensure correct hmac usage
     sig_basestring = f"v0:{timestamp}:{body.decode('utf-8')}"
-    my_sig = "v0=" + hmac.new(secret.encode(), sig_basestring.encode(), hashlib.sha256).hexdigest()
+    my_sig = "v0=" + hmac.new(key=secret.encode(), msg=sig_basestring.encode(), digestmod=hashlib.sha256).hexdigest()
     if not hmac.compare_digest(my_sig, signature):
         raise HTTPException(status_code=401, detail="Invalid signature")
             
@@ -151,6 +163,8 @@ async def slack_interactions(request: Request):
     if action_id == "ack_drift":
         msg = f"[Ack] Run {run_id} was acknowledged by <@{user}>."
     elif action_id == "snooze_drift":
+        import time
+        with open(".snooze", "w") as f: f.write(str(time.time() + 3600))
         msg = f"[Snooze] Run {run_id} alerts snoozed for 1 hour by <@{user}>."
 
     async with aiohttp.ClientSession() as session:
@@ -194,7 +208,10 @@ ws_manager = ConnectionManager()
 
 
 @app.websocket("/api/v1/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, token: str = None):
+    if os.environ.get("DRIFT_API_KEY") and token != os.environ.get("DRIFT_API_KEY"):
+        await websocket.close(code=1008)
+        return
     await ws_manager.connect(websocket)
     try:
         while True:

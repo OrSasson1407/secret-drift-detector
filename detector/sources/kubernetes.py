@@ -1,4 +1,4 @@
-﻿import base64
+import base64
 import asyncio
 from datetime import datetime, timezone
 from detector.sources import BaseSource, SecretSnapshot

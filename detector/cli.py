@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import json as _json
 import os
 import hashlib
@@ -263,7 +263,7 @@ def init_wizard(output, force):
     console.print("\n[bold]Secret source[/bold]")
     src_type = Prompt.ask(
         "  Source type",
-        choices=["dotenv", "vault", "ssm", "doppler", "secrets_manager"],
+        choices=["dotenv", "vault", "ssm", "doppler", "secrets_manager", "gcp", "kubernetes"],
         default="dotenv",
     )
 
@@ -513,7 +513,10 @@ def _parse_since(value: str) -> datetime:
         return now - timedelta(hours=int(value[:-1]))
     if value.endswith("d"):
         return now - timedelta(days=int(value[:-1]))
-    return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        raise ValueError(f"Invalid ISO datetime format: {value}").replace(tzinfo=timezone.utc)
 
 
 

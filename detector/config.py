@@ -1,4 +1,4 @@
-﻿import os
+import os
 try:
     import tomllib
 except ImportError:

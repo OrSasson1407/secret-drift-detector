@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 from datetime import datetime, timezone
 from google.cloud import secretmanager
 from detector.sources import BaseSource, SecretSnapshot

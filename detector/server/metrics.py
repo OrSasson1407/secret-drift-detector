@@ -1,4 +1,4 @@
-﻿from prometheus_client import Counter, Gauge
+from prometheus_client import Counter, Gauge
 
 DRIFT_CHECK_COUNT    = Counter("drift_check_total",    "Total number of drift checks run")
 DRIFT_DETECTED_COUNT = Counter("drift_detected_total", "Total checks that found drift")

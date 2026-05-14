@@ -1,4 +1,4 @@
-﻿import math
+import math
 import re
 from detector.diff.models import Severity, DriftKind
 

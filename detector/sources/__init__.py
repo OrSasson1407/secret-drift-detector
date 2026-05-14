@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import hashlib
 import random
 from abc import ABC, abstractmethod

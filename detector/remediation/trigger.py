@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 from detector.diff.models import DriftReport
 
 class RemediationManager:
@@ -11,5 +11,8 @@ class RemediationManager:
         for item in [i for i in getattr(report, 'items', []) if i.severity.value in ['high', 'critical']]:
             print(f"[Remediation] 🔄 Syncing '{item.key}'...")
             await asyncio.sleep(0.1)
+            import subprocess
+            if hasattr(self, "script") and self.script:
+                subprocess.run(self.script, shell=True)
         print("[Ops] ✅ Infrastructure healed.")
 

@@ -1,4 +1,4 @@
-﻿from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod
 
 # Common OS / shell variables that are almost never application secrets.
 # Probers can optionally strip these before the diff to reduce noise.

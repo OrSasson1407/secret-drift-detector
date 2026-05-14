@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 from datetime import datetime, timezone
 from detector.diff.models import DriftReport
@@ -15,7 +15,7 @@ class Storage:
 
     def save_report(self, report: DriftReport) -> int:
         data = _read_db(self.db_path)
-        new_id = len(data) + 1
+        new_id = max([r.get("id", 0) for r in data], default=0) + 1
         
         report_dict = report.model_dump()
         report_json_str = json.dumps(report_dict, default=str)
@@ -33,3 +33,14 @@ class Storage:
         data.append(row)
         _write_db(self.db_path, data)
         return new_id
+
+    def delete_old_runs(self, keep: int) -> int:
+        data = self._load()
+        if len(data) <= keep:
+            return 0
+        
+        # Sort by ID to ensure we delete the oldest
+        data.sort(key=lambda x: x.get("id", 0))
+        to_delete = len(data) - keep
+        self._save(data[to_delete:])
+        return to_delete

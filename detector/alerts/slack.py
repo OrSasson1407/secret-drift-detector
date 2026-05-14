@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import aiohttp
 from detector.alerts import BaseAlerter
 from detector.diff.models import DriftReport, Severity

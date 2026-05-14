@@ -1,4 +1,4 @@
-﻿from rich.console import Console
+from rich.console import Console
 from rich.table import Table
 from detector.alerts import BaseAlerter
 from detector.diff.models import DriftReport, Severity

@@ -1,4 +1,5 @@
-﻿import aiohttp
+import aiohttp
+from aiohttp import ClientTimeout
 from detector.alerts import BaseAlerter
 from detector.diff.models import DriftReport
 
@@ -34,7 +35,7 @@ class PagerDutyAlerter(BaseAlerter):
             },
         }
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=ClientTimeout(total=10)) as session:
             async with session.post(_PD_URL, json=payload) as resp:
                 if resp.status >= 400:
                     print(f"[PagerDutyAlerter] HTTP {resp.status}: {await resp.text()}")

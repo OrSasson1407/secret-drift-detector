@@ -1,1 +1,3 @@
-# Configuration Reference
+# Config Reference
+
+Reference for detector.toml.

@@ -1,4 +1,4 @@
-﻿from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from detector.diff.models import DriftReport, DriftItem, Severity
 

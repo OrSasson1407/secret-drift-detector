@@ -1,4 +1,4 @@
-﻿import json
+import json
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from detector.diff.models import DriftReport

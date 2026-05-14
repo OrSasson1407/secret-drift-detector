@@ -1,3 +1,5 @@
+import time
+import os
 ﻿from datetime import datetime, timezone
 import asyncio
 import signal
@@ -204,7 +206,13 @@ class Agent:
         metrics.EXPECTED_SECRETS.set(report.expected_count)
         metrics.RUNTIME_SECRETS.set(report.actual_count)
         metrics.ACTIVE_DRIFT_ITEMS.set(len(report.items))
-        if report.has_drift:
+        
+        snoozed = False
+        if os.path.exists(".snooze"):
+            with open(".snooze", "r") as f:
+                if time.time() < float(f.read().strip() or 0):
+                    snoozed = True
+        if report.has_drift and not snoozed:
             metrics.DRIFT_DETECTED_COUNT.inc()
 
         run_id = self.storage.save_report(report)
