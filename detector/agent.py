@@ -1,6 +1,6 @@
 import time
 import os
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 import asyncio
 import signal
 import structlog

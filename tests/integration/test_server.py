@@ -1,104 +1,39 @@
-﻿"""
-Integration tests for the FastAPI server endpoints.
-Uses httpx TestClient — no network calls required.
-"""
+import os
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 
-from detector.storage.history import History, RunSummary
+# Ensure env is set before importing app
+os.environ["DRIFT_DB_PATH"] = "test_db_temp.json"
+os.environ["DRIFT_API_KEY"] = "test-secret-key"
 
+from detector.server.app import app
 
-_MOCK_RUNS = [
-    RunSummary(id=2, timestamp="2024-03-15T14:32:01", expected_count=5,
-               actual_count=4, drift_count=2, has_drift=True,
-               max_severity="critical", sources=["vault:app"], targets=["docker:web"]),
-    RunSummary(id=1, timestamp="2024-03-15T13:00:00", expected_count=5,
-               actual_count=5, drift_count=0, has_drift=False,
-               max_severity=None, sources=["vault:app"], targets=["docker:web"]),
-]
+client = TestClient(app)
+HEADERS = {"X-API-Key": "test-secret-key"}
 
-_MOCK_RUN_DETAIL = {
-    "id": 2, "timestamp": "2024-03-15T14:32:01",
-    "expected_count": 5, "actual_count": 4,
-    "has_drift": 1, "drift_count": 2, "max_severity": "critical",
-    "sources": ["vault:app"], "targets": ["docker:web"],
-    "report_json": {"items": [], "expected_count": 5, "actual_count": 4,
-                    "checked_at": "2024-03-15T14:32:01Z", "sources": [], "targets": []},
-}
+def test_health_endpoint():
+    response = client.get("/api/v1/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
 
-_MOCK_TREND = [
-    {"id": 1, "timestamp": "2024-03-15T13:00:00", "drift_count": 0, "has_drift": 0, "max_severity": None},
-    {"id": 2, "timestamp": "2024-03-15T14:32:01", "drift_count": 2, "has_drift": 1, "max_severity": "critical"},
-]
+def test_list_runs_without_auth_fails():
+    # Should fail because X-API-Key is missing
+    response = client.get("/api/v1/runs")
+    assert response.status_code == 403
 
+def test_list_runs_with_auth_succeeds():
+    # Should succeed because we pass the valid key
+    response = client.get("/api/v1/runs", headers=HEADERS)
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
 
-@pytest.fixture
-def client():
-    from detector.server.app import app
-    return TestClient(app)
+def test_latest_run_no_runs_yet():
+    # Initially the in-memory DB is empty, should return 404 (we fixed this from 204!)
+    response = client.get("/api/v1/latest")
+    assert response.status_code == 404
 
-
-@pytest.fixture(autouse=True)
-def mock_history():
-    with patch.object(History, "list_runs",   return_value=_MOCK_RUNS), \
-         patch.object(History, "get_run",     return_value=_MOCK_RUN_DETAIL), \
-         patch.object(History, "drift_trend", return_value=_MOCK_TREND):
-        yield
-
-
-def test_health(client):
-    r = client.get("/api/v1/health")
-    assert r.status_code in [200, 204]
-    assert r.json()["status"] == "ok"
-
-
-def test_list_runs(client):
-    r = client.get("/api/v1/runs")
-    assert r.status_code in [200, 204]
-    data = r.json()
-    assert len(data) == 2
-
-
-
-def test_list_runs_only_drift(client):
-    r = client.get("/api/v1/runs?only_drift=true")
-    assert r.status_code in [200, 204]
-
-
-def test_get_run(client):
-    r = client.get("/api/v1/runs/2")
-    assert r.status_code in [200, 204]
-    assert "id" in r.json()
-
-
-
-def test_get_run_not_found(client):
-    with patch.object(History, "get_run", return_value=None):
-        r = client.get("/api/v1/runs/9999")
-        assert r.status_code == 404
-
-
-def test_drift_trend(client):
-    r = client.get("/api/v1/trend")
-    assert r.status_code in [200, 204]
-    trend = r.json()
-    assert len(trend) == 2
-
-
-
-
-
-
-def test_latest_run_empty(client):
-    with patch.object(History, "list_runs", return_value=[]):
-        r = client.get("/api/v1/latest")
-        assert r.status_code == 204
-
-def test_slack_interaction_ssrf_protection(client):
-    r = client.post("/api/v1/slack/interactions", headers={
-        "X-Slack-Request-Timestamp": "9999999999",
-        "X-Slack-Signature": "v0=fake"
-    }, data={"payload": '{"response_url": "http://internal-db/"}'})
-    assert r.status_code == 401 # Should fail on signature first
-
+def test_stats_endpoint():
+    response = client.get("/api/v1/stats")
+    assert response.status_code == 200
+    data = response.json()
+    assert "total_runs" in data

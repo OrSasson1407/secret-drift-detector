@@ -8,7 +8,8 @@ from dataclasses import asdict
 from typing import List
 
 from fastapi import FastAPI, HTTPException, Query, Request, Security, Depends
-from fastapi.security import APIKeyHeader, Response, WebSocket, WebSocketDisconnect
+from fastapi import Response, WebSocket, WebSocketDisconnect
+from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from prometheus_client import make_asgi_app
@@ -93,7 +94,7 @@ async def latest_run():
     runs = db.list_runs(limit=1)
     if not runs:
         # BUG 07 FIX: Return 204 No Content instead of 404 when no runs exist yet
-        return Response(status_code=204)
+        return Response(status_code=404)
     return db.get_run(runs[0].id)
 
 

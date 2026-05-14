@@ -5,7 +5,7 @@ fail_on_drift = false
 
 [[sources]]
 type = 'dotenv'
-path = '/app/.env.production'
+path = '/app/.env.example'
 
 [[targets]]
 type = 'docker'

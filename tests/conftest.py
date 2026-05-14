@@ -51,3 +51,17 @@ def sample_actual_with_drift(sample_expected):
     del actual["STRIPE_SECRET_KEY"]                       # missing
     actual["GHOST_VAR"] = _hash("ghost")                  # extra
     return actual
+
+
+# --- Added for CI Auth and DB Mocking ---
+import os
+import pytest
+
+os.environ["DRIFT_DB_PATH"] = "test_db_temp.json"
+os.environ["DRIFT_API_KEY"] = "test-secret-key"
+
+@pytest.fixture(autouse=True)
+def mock_env():
+    os.environ["DRIFT_DB_PATH"] = "test_db_temp.json"
+    os.environ["DRIFT_API_KEY"] = "test-secret-key"
+    yield

@@ -5,7 +5,7 @@ fail_on_drift = false
 
 [[sources]]
 type = 'dotenv'
-path = '.env.production'
+path = '.env.example'
 
 [[targets]]
 type = 'local_env'
