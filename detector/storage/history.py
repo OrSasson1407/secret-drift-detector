@@ -95,9 +95,25 @@ class History:
     def stats(self):
         data = _read_db(self.db_path)
         total = len(data)
-        drifts = sum(1 for row in data if len(row.get("report_json", {}).get("items", [])) > 0)
+        drifts = 0
+        total_items = 0
+        by_sev = {}
+
+        for row in data:
+            rep = row.get("report_json", {})
+            items = rep.get("items", [])
+            if len(items) > 0:
+                drifts += 1
+                total_items += len(items)
+                sev = rep.get("max_severity")
+                if sev:
+                    by_sev[sev] = by_sev.get(sev, 0) + 1
+
         return {
             "total_runs": total,
-            "drift_rate": (drifts / total) if total > 0 else 0.0,
-            "drifting_runs": drifts
+            "drifted_runs": drifts,
+            "clean_runs": total - drifts,
+            "drift_rate_pct": round((drifts / total * 100), 2) if total > 0 else 0.0,
+            "total_drift_items": total_items,
+            "by_max_severity": by_sev
         }

@@ -41,7 +41,10 @@ class Agent:
         self.targets  = []
         self.alerters = []
         self.storage  = Storage(db_path=config.agent.db_path)
-        self.remediation = RemediationManager(enabled=config.remediation.enabled if hasattr(config, 'remediation') else False)
+        self.remediation = RemediationManager(
+            enabled=config.remediation.enabled if hasattr(config, 'remediation') else False,
+            script=config.remediation.script if hasattr(config, 'remediation') and hasattr(config.remediation, 'script') else None
+        )
         self._stop    = asyncio.Event()
         self._init_components()
 
@@ -132,10 +135,8 @@ class Agent:
         source_map:    dict[str, str] = {}
         source_names:  list[str]      = []
         failed_sources: list[str]     = []
-        # Collect all keys ever seen across sources (for orphan detection)
         all_source_keys: set[str]     = set()
 
-        # Collect rotation deadlines from source metadata
         stale_keys: set[str] = set()
         max_age_map: dict[str, int] = {}
         for s in self.sources:
@@ -151,17 +152,16 @@ class Agent:
                 for key in snap.secrets:
                     source_map[key] = snap.source
                     all_source_keys.add(key)
-                    # Check rotation age via metadata timestamps
-                    if snap.source in max_age_map:
+                    if snap.source in max_age_map or snap.source.split(':')[0] in max_age_map:
                         created = snap.metadata.get("created_time", {}).get(key) or snap.metadata.get("last_modified", {}).get(key)
                         if created:
-
                             try:
                                 age_days = (
                                     datetime.now(timezone.utc) -
                                     datetime.fromisoformat(created.replace("Z", "+00:00"))
                                 ).days
-                                if age_days > max_age_map.get(snap.source.split(':')[0], None):
+                                max_age = max_age_map.get(snap.source.split(':')[0])
+                                if max_age is not None and age_days > max_age:
                                     stale_keys.add(key)
                             except Exception:
                                 pass
@@ -174,7 +174,6 @@ class Agent:
         if failed_sources:
             log.warning("partial_snapshot", failed=failed_sources, ok=source_names)
 
-        # Probe targets — keep plaintext for entropy scoring
         actual_raw:  dict[str, str] = {}
         target_names: list[str]     = []
         for tgt in self.targets:
@@ -195,7 +194,7 @@ class Agent:
             stale_keys=stale_keys,
             source_map=source_map,
             all_source_keys=all_source_keys,
-            actual_plaintext=actual_raw,          # enables entropy scoring
+            actual_plaintext=actual_raw,
             enable_entropy=cfg.enable_entropy,
         )
 
@@ -270,5 +269,3 @@ class Agent:
     @classmethod
     def from_config(cls, config_path: str) -> "Agent":
         return cls(DetectorConfig.load_from_file(config_path))
-
-

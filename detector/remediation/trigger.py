@@ -2,8 +2,9 @@ import asyncio
 from detector.diff.models import DriftReport
 
 class RemediationManager:
-    def __init__(self, enabled: bool = False):
+    def __init__(self, enabled: bool = False, script: str = None):
         self.enabled = enabled
+        self.script = script
 
     async def trigger(self, report: DriftReport) -> None:
         if not self.enabled or not report.has_drift: return
@@ -15,4 +16,3 @@ class RemediationManager:
             if hasattr(self, "script") and self.script:
                 subprocess.run(self.script, shell=True)
         print("[Ops] ✅ Infrastructure healed.")
-

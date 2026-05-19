@@ -1,4 +1,4 @@
-﻿name: Secret Drift CI Blocker
+name: Secret Drift CI Blocker
 on: [pull_request, push]
 jobs:
   detect-drift:
@@ -11,4 +11,3 @@ jobs:
       - name: Run Unit Tests
         run: poetry run pytest tests/
       - run: poetry run python -m detector.cli scan --ci --config config/local_test.toml
-

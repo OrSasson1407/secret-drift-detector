@@ -1,18 +1,14 @@
 import aiohttp
 from detector.alerts import BaseAlerter
-from detector.diff.models import DriftReport
+from detector.diff.models import DriftReport, Severity
 
 class JiraAlerter(BaseAlerter):
     def __init__(self, url: str, username: str, token: str, project_key: str, min_severity: str = "warn"):
+        super().__init__(min_severity)
         self.url = url
         self.username = username
         self.token = token
         self.project_key = project_key
-        self.min_severity = min_severity
-
-    
-
-    
 
     async def send_alert(self, report: DriftReport) -> None:
         if not self.url or not report.has_drift:
@@ -26,7 +22,6 @@ class JiraAlerter(BaseAlerter):
         for item in items:
             description += f"- {item.key} ({item.kind.value}): {item.detail}\n"
 
-        # Formatted for Agile workflow integration
         payload = {
             "fields": {
                 "project": {"key": self.project_key},
@@ -40,4 +35,3 @@ class JiraAlerter(BaseAlerter):
             async with session.post(self.url, json=payload) as resp:
                 if resp.status >= 400:
                     print(f"[JiraAlerter] Failed to create task: {await resp.text()}")
-

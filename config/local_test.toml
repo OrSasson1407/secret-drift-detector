@@ -1,17 +1,105 @@
-﻿[agent]
-interval_seconds = 10
-alert_on_extra = false
-fail_on_drift = false
+﻿# =============================================================================
+# Secret Drift Detector — Professional Local Configuration
+# =============================================================================
+# This configuration is designed for local development and testing, showcasing
+# a multi-source, multi-target architecture with tiered alerting.
+#
+# SECRETS MANAGEMENT: 
+# Use the "env:" prefix to dynamically resolve secrets from your shell environment.
+# NEVER hardcode API tokens or webhook URLs directly in this file.
+# =============================================================================
 
+[agent]
+# How often the 'watch' command scans your infrastructure
+interval_seconds = 30
+
+# Flag orphaned or undocumented keys found running in the target environments
+alert_on_extra   = true
+
+# Exit with a non-zero status code if drift is detected (crucial for CI/CD pipelines)
+fail_on_drift    = false
+
+# Robustness: Retry logic for external network calls (Vault, AWS, GCP, etc.)
+max_retries      = 3
+retry_delay      = 2.0
+
+# Connect the agent to the SQLite database so the React UI can read the history
+db_path          = "drift_history.db"
+
+
+# -----------------------------------------------------------------------------
+# EXPECTED STATE (SOURCES OF TRUTH)
+# Define where your canonical secrets live.
+# -----------------------------------------------------------------------------
+
+# Source 1: Local .env example file (Baseline configs)
 [[sources]]
-type = 'dotenv'
-path = '.env.example'
+type         = "dotenv"
+path         = ".env.example"
+max_age_days = 90  # Will trigger a STALE_SECRET warning if not rotated in 90 days
 
+# Source 2: Doppler (Simulated Cloud Secrets)
+# (Uncomment and export DOPPLER_TOKEN to test cloud fetching)
+# [[sources]]
+# type       = "doppler"
+# project    = "drift-detector-dev"
+# config_env = "dev"
+# token      = "env:DOPPLER_TOKEN"
+
+# Source 3: HashiCorp Vault 
+# (Uncomment and export VAULT_TOKEN to test Vault integration)
+# [[sources]]
+# type  = "vault"
+# addr  = "http://127.0.0.1:8200"
+# path  = "secret/data/local/app"
+# token = "env:VAULT_TOKEN"
+
+
+# -----------------------------------------------------------------------------
+# ACTUAL STATE (TARGET RUNTIMES)
+# Define the live environments you want to inspect for drift.
+# -----------------------------------------------------------------------------
+
+# Target 1: The Local Shell Environment
 [[targets]]
-type = 'local_env'
+type = "local_env"
+# Optional: Only scan variables matching specific prefixes to reduce noise
+# key_filter = ["DB_", "API_", "AWS_", "STRIPE_", "SECRET_"]
 
+# Target 2: A Local Docker Container
+# (Uncomment if you have a local container running to inspect memory)
+# [[targets]]
+# type      = "docker"
+# container = "my-local-app-container"
+
+
+# -----------------------------------------------------------------------------
+# ALERTING & NOTIFICATIONS
+# Tiered alert routing based on severity thresholds.
+# -----------------------------------------------------------------------------
+
+# 1. Terminal Output: Log absolutely everything to the console for local debugging
+[alerts.stdout]
+enabled      = true
+min_severity = "info"
+
+# 2. Slack: Notify the dev channel only for warnings and above
 [alerts.slack]
-enabled = false
+enabled      = false    # Set to true to test
+webhook_url  = "env:SLACK_WEBHOOK_URL"
+min_severity = "warn"
 
-[alerts.pagerduty]
-enabled = false
+# 3. Webhook / SIEM Integration: Send high/critical alerts to a local logging server
+[alerts.webhook]
+enabled      = false    # Set to true to test
+url          = "http://127.0.0.1:8080/drift-alerts"
+min_severity = "high"
+
+# 4. Jira: Auto-create Jira tasks for critical infrastructure drift only
+[alerts.jira]
+enabled      = false    # Set to true to test
+url          = "https://your-domain.atlassian.net"
+username     = "env:JIRA_USER_EMAIL"
+token        = "env:JIRA_API_TOKEN"
+project_key  = "SEC"
+min_severity = "critical"

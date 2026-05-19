@@ -64,7 +64,7 @@ def _render_table(report: DriftReport):
 
 @click.group()
 def cli():
-    """Secret Drift Detector — catch config drift before it becomes an incident."""
+    \"\"\"Secret Drift Detector — catch config drift before it becomes an incident.\"\"\"
 
 
 # ── check ─────────────────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ def cli():
 @click.option("--min-severity", default="info", show_default=True,
               type=click.Choice(["info", "warn", "high", "critical"]))
 def check(config, output, min_severity):
-    """One-shot drift check. Exits 1 if drift is found (and fail_on_drift=true)."""
+    \"\"\"One-shot drift check. Exits 1 if drift is found (and fail_on_drift=true).\"\"\"
     async def _run():
         agent  = Agent.from_config(config)
         report = await agent.run_once()
@@ -99,7 +99,7 @@ def check(config, output, min_severity):
 @click.option("--config",   default="config/detector.toml", show_default=True)
 @click.option("--interval", type=int, default=None, help="Override interval_seconds from config")
 def watch(config, interval):
-    """Continuous daemon mode — polls on a configurable interval."""
+    \"\"\"Continuous daemon mode — polls on a configurable interval.\"\"\"
     async def _run():
         agent   = Agent.from_config(config)
         ivl     = interval or agent.config.agent.interval_seconds
@@ -147,7 +147,7 @@ def watch(config, interval):
 @click.option("--since",      default=None, help="ISO date or relative: '24h', '7d'")
 @click.option("--output",     type=click.Choice(["table", "json"]), default="table", show_default=True)
 def report(db, limit, only_drift, since, output):
-    """Show drift history from the local SQLite database."""
+    \"\"\"Show drift history from the local SQLite database.\"\"\"
     hist = History(db_path=db)
     runs = hist.list_runs(limit=limit, only_drift=only_drift)
 
@@ -192,7 +192,7 @@ def report(db, limit, only_drift, since, output):
 @click.option("--db",     default="drift_history.db", show_default=True)
 @click.option("--output", type=click.Choice(["table", "json"]), default="table", show_default=True)
 def stats(db, output):
-    """Show aggregate drift statistics across all recorded runs."""
+    \"\"\"Show aggregate drift statistics across all recorded runs.\"\"\"
     hist = History(db_path=db)
     s    = hist.stats()
 
@@ -228,7 +228,7 @@ def stats(db, output):
               help="Number of most recent runs to keep")
 @click.confirmation_option(prompt="This will permanently delete old runs. Continue?")
 def prune(db, keep):
-    """Delete old runs from the history database, keeping the N most recent."""
+    \"\"\"Delete old runs from the history database, keeping the N most recent.\"\"\"
     storage = Storage(db_path=db)
     deleted = storage.delete_old_runs(keep=keep)
     console.print(f"[green]Pruned {deleted} run(s). Kept most recent {keep}.[/green]")
@@ -242,7 +242,7 @@ def prune(db, keep):
 @click.option("--force",  is_flag=True, default=False,
               help="Overwrite existing config without prompting")
 def init_wizard(output, force):
-    """Interactive wizard — generates a detector.toml from prompted answers."""
+    \"\"\"Interactive wizard — generates a detector.toml from prompted answers.\"\"\"
     console.print("\n[bold cyan]Secret Drift Detector — Setup Wizard[/bold cyan]\n")
 
     out_path = Path(output)
@@ -251,7 +251,6 @@ def init_wizard(output, force):
             console.print("[dim]Aborted.[/dim]")
             return
 
-    # ── Agent settings ───────────────────────────────────────
     console.print("[bold]Agent settings[/bold]")
     interval   = Prompt.ask("  Poll interval (seconds)", default="60")
     db_path    = Prompt.ask("  SQLite database path",    default="drift_history.db")
@@ -259,7 +258,6 @@ def init_wizard(output, force):
     alert_extra = Confirm.ask("  Alert on extra runtime keys?", default=False)
     enable_entropy = Confirm.ask("  Enable weak-value entropy scanning?", default=True)
 
-    # ── Source ───────────────────────────────────────────────
     console.print("\n[bold]Secret source[/bold]")
     src_type = Prompt.ask(
         "  Source type",
@@ -306,7 +304,6 @@ def init_wizard(output, force):
         region = Prompt.ask("  AWS region", default="us-east-1")
         source_lines += [f'path = "{path}"', f'region = "{region}"']
 
-    # ── Target ───────────────────────────────────────────────
     console.print("\n[bold]Runtime target[/bold]")
     tgt_type = Prompt.ask(
         "  Target type",
@@ -327,7 +324,6 @@ def init_wizard(output, force):
         ns  = Prompt.ask("  Namespace", default="default")
         target_lines += [f'pod = "{pod}"', f'namespace = "{ns}"']
 
-    # ── Slack (optional) ─────────────────────────────────────
     alert_lines: list[str] = []
     if Confirm.ask("\n  Configure Slack alerts?", default=False):
         hook_var = Prompt.ask("  Slack webhook env var", default="SLACK_WEBHOOK_URL")
@@ -341,9 +337,8 @@ def init_wizard(output, force):
         if mention:
             alert_lines.append(f'mention = "{mention}"')
 
-    # ── Assemble TOML ─────────────────────────────────────────
     lines = [
-        "# detector.toml — generated by `detector init`",
+        "# detector.toml — generated by detector init",
         "",
         "[agent]",
         f"interval_seconds = {interval}",
@@ -377,20 +372,7 @@ def init_wizard(output, force):
 @click.option("--weak",         multiple=True, metavar="KEY=VALUE", help="Inject weak KEY=VALUE into runtime (for entropy test)")
 @click.option("--output",       type=click.Choice(["table", "json"]), default="table", show_default=True)
 def simulate(config, delete, change, add, weak, output):
-    """
-    Dry-run: inject synthetic drift into a snapshot and show how the tool responds.
-
-    Examples
-    --------
-    # Simulate a missing DB password
-    detector simulate --config config/detector.toml --delete DB_PASSWORD
-
-    # Simulate a changed API key
-    detector simulate --config config/detector.toml --change STRIPE_API_KEY
-
-    # Simulate a weak secret being added to runtime
-    detector simulate --config config/detector.toml --weak MY_SECRET=password123
-    """
+    \"\"\"Dry-run: inject synthetic drift into a snapshot and show how the tool responds.\"\"\"
     import secrets as _secrets
     from detector.diff.engine import compute_drift
     from detector.sources import _hash
@@ -398,7 +380,6 @@ def simulate(config, delete, change, add, weak, output):
     async def _run():
         agent = Agent.from_config(config)
 
-        # Pull a real expected snapshot if sources are reachable, else use empty
         cfg = agent.config.agent
         snapshots = await asyncio.gather(
             *[src.fetch_with_retry(max_retries=1, delay=0.5) for src in agent.sources],
@@ -410,11 +391,9 @@ def simulate(config, delete, change, add, weak, output):
             if not isinstance(snap, Exception):
                 expected.update(snap.secrets)
 
-        # actual mirrors expected (clean baseline)
         actual_hashed:    dict[str, str] = dict(expected)
         actual_plaintext: dict[str, str] = {}
 
-        # Apply mutations
         for key in delete:
             actual_hashed.pop(key, None)
             console.print(f"  [dim]→ deleted '{key}' from runtime snapshot[/dim]")
@@ -463,12 +442,7 @@ def simulate(config, delete, change, add, weak, output):
 @click.option("--limit", default=100, show_default=True, type=int,
               help="Number of most recent runs to verify")
 def verify(db, limit):
-    """
-    Verify the tamper-evident audit hash chain for stored drift reports.
-
-    Each run's hash is computed as SHA-256(prev_hash + report_json).
-    A broken chain indicates the database was modified after the fact.
-    """
+    \"\"\"Verify the tamper-evident audit hash chain for stored drift reports.\"\"\"
     hist = History(db_path=db)
     runs = hist.verify_chain(limit=limit)
 
@@ -514,10 +488,9 @@ def _parse_since(value: str) -> datetime:
     if value.endswith("d"):
         return now - timedelta(days=int(value[:-1]))
     try:
-        return datetime.fromisoformat(value)
+        return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
     except ValueError:
-        raise ValueError(f"Invalid ISO datetime format: {value}").replace(tzinfo=timezone.utc)
-
+        raise ValueError(f"Invalid ISO datetime format: {value}")
 
 
 # ── scan (CI integration) ─────────────────────────────────────────────────────
@@ -526,7 +499,7 @@ def _parse_since(value: str) -> datetime:
 @click.option("--ci", is_flag=True)
 @click.option("--fail-on-drift", is_flag=True)
 def scan(config, ci, fail_on_drift):
-    """Scan for drift (designed for CI/CD pipelines)."""
+    \"\"\"Scan for drift (designed for CI/CD pipelines).\"\"\"
     import asyncio
     from detector.agent import Agent
     async def _run():
@@ -538,4 +511,3 @@ def scan(config, ci, fail_on_drift):
 
 if __name__ == "__main__":
     cli()
-
