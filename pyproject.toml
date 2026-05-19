@@ -1,4 +1,4 @@
-[tool.poetry]
+﻿[tool.poetry]
 name        = "secret-drift-detector"
 version     = "0.3.0"
 description = "Detect config drift between expected secrets and live runtime"
@@ -6,6 +6,7 @@ authors     = ["OrSasson1407 <orsasson1407@gmail.com>"]
 package-mode = false
 
 [tool.poetry.dependencies]
+tomli = { version = "^2.0.1", python = "<3.11" }
 python                     = "^3.11"
 hvac                       = "^2.3"
 boto3                      = "^1.34"

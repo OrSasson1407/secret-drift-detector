@@ -1,4 +1,4 @@
-import os
+﻿import os
 try:
     import tomllib
 except ImportError:
@@ -118,6 +118,7 @@ class StdoutAlertConfig(BaseModel):
 
 class RemediationConfig(BaseModel):
     enabled: bool = False
+    script: str | None = None
 
 class AlertsConfig(BaseModel):
     slack:      SlackAlertConfig      = Field(default_factory=SlackAlertConfig)
@@ -135,7 +136,8 @@ class AgentConfig(BaseModel):
     max_retries:      int   = 3
     retry_delay:      float = 2.0
     timeout_seconds:  float = 10.0
-    db_path:          str   = "drift_history.db"
+    db_path:          str   = "drift_history.json"
+    db_uri:           str | None = None
     enable_entropy:   bool  = True   
 
 
@@ -155,3 +157,5 @@ class DetectorConfig(BaseModel):
             if "config" in src and "config_env" not in src:
                 src["config_env"] = src.pop("config")
         return cls(**data)
+
+

@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import json as _json
 import os
 import hashlib
@@ -25,24 +25,24 @@ _SEV_COLOR = {
 }
 
 _SEV_ICON = {
-    "critical": "[bold red]●[/bold red]",
-    "high":     "[red]●[/red]",
-    "warn":     "[yellow]●[/yellow]",
-    "info":     "[dim]●[/dim]",
+    "critical": "[bold red]ג—[/bold red]",
+    "high":     "[red]ג—[/red]",
+    "warn":     "[yellow]ג—[/yellow]",
+    "info":     "[dim]ג—[/dim]",
 }
 
 
 def _render_table(report: DriftReport):
     if not report.has_drift:
-        console.print("[bold green]✔ No drift detected — runtime matches expected secrets.[/bold green]")
+        console.print("[bold green]ג” No drift detected ג€” runtime matches expected secrets.[/bold green]")
         return
 
     console.print(
-        f"\n[bold red]✖ DRIFT DETECTED — {len(report.items)} item(s)[/bold red]  "
+        f"\n[bold red]ג– DRIFT DETECTED ג€” {len(report.items)} item(s)[/bold red]  "
         f"[dim]{report.checked_at.strftime('%Y-%m-%d %H:%M:%S UTC')}[/dim]"
     )
-    console.print(f"  Sources : [cyan]{', '.join(report.sources) or '—'}[/cyan]")
-    console.print(f"  Targets : [cyan]{', '.join(report.targets) or '—'}[/cyan]\n")
+    console.print(f"  Sources : [cyan]{', '.join(report.sources) or 'ג€”'}[/cyan]")
+    console.print(f"  Targets : [cyan]{', '.join(report.targets) or 'ג€”'}[/cyan]\n")
 
     tbl = Table(show_header=True, header_style="bold magenta", border_style="dim")
     tbl.add_column("KEY",      style="cyan",  no_wrap=True)
@@ -64,10 +64,10 @@ def _render_table(report: DriftReport):
 
 @click.group()
 def cli():
-    \"\"\"Secret Drift Detector — catch config drift before it becomes an incident.\"\"\"
+    \"\"\"Secret Drift Detector ג€” catch config drift before it becomes an incident.\"\"\"
 
 
-# ── check ─────────────────────────────────────────────────────────────────────
+# ג”€ג”€ check ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
 @cli.command()
 @click.option("--config",       default="config/detector.toml", show_default=True)
@@ -93,20 +93,20 @@ def check(config, output, min_severity):
     asyncio.run(_run())
 
 
-# ── watch ─────────────────────────────────────────────────────────────────────
+# ג”€ג”€ watch ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
 @cli.command()
 @click.option("--config",   default="config/detector.toml", show_default=True)
 @click.option("--interval", type=int, default=None, help="Override interval_seconds from config")
 def watch(config, interval):
-    \"\"\"Continuous daemon mode — polls on a configurable interval.\"\"\"
+    \"\"\"Continuous daemon mode ג€” polls on a configurable interval.\"\"\"
     async def _run():
         agent   = Agent.from_config(config)
         ivl     = interval or agent.config.agent.interval_seconds
         run_num = 0
 
         console.print(
-            f"[bold]Watch mode[/bold] — config: [cyan]{config}[/cyan]  "
+            f"[bold]Watch mode[/bold] ג€” config: [cyan]{config}[/cyan]  "
             f"interval: [cyan]{ivl}s[/cyan]  "
             f"db: [cyan]{agent.config.agent.db_path}[/cyan]\n"
             "Press Ctrl+C to stop.\n"
@@ -118,7 +118,7 @@ def watch(config, interval):
             report = await agent.run_once()
 
             if report.has_drift:
-                icon = _SEV_ICON.get(report.max_severity.value, "●") if report.max_severity else "●"
+                icon = _SEV_ICON.get(report.max_severity.value, "ג—") if report.max_severity else "ג—"
                 console.print(
                     f"[dim]{ts}[/dim]  run #{run_num}  {icon}  "
                     f"[red]{len(report.items)} drift item(s)[/red]  "
@@ -126,7 +126,7 @@ def watch(config, interval):
                 )
             else:
                 console.print(
-                    f"[dim]{ts}[/dim]  run #{run_num}  [green]✔ clean[/green]  "
+                    f"[dim]{ts}[/dim]  run #{run_num}  [green]ג” clean[/green]  "
                     f"{report.expected_count} keys checked"
                 )
 
@@ -138,16 +138,16 @@ def watch(config, interval):
         console.print("\n[dim]Stopped.[/dim]")
 
 
-# ── report ────────────────────────────────────────────────────────────────────
+# ג”€ג”€ report ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
 @cli.command()
-@click.option("--db",         default="drift_history.db", show_default=True)
+@click.option("--db",         default="drift_history.json", show_default=True)
 @click.option("--limit",      default=20,  show_default=True, type=int)
 @click.option("--only-drift", is_flag=True, default=False)
 @click.option("--since",      default=None, help="ISO date or relative: '24h', '7d'")
 @click.option("--output",     type=click.Choice(["table", "json"]), default="table", show_default=True)
 def report(db, limit, only_drift, since, output):
-    \"\"\"Show drift history from the local SQLite database.\"\"\"
+    \"\"\"Show drift history from the local JSON database.\"\"\"
     hist = History(db_path=db)
     runs = hist.list_runs(limit=limit, only_drift=only_drift)
 
@@ -173,23 +173,23 @@ def report(db, limit, only_drift, since, output):
 
     for r in runs:
         drift_cell = "[red]YES[/red]" if r.has_drift else "[green]no[/green]"
-        sev        = r.max_severity or "—"
+        sev        = r.max_severity or "ג€”"
         color      = _SEV_COLOR.get(sev, "white")
         tbl.add_row(
             str(r.id),
             r.timestamp[:19].replace("T", " "),
             drift_cell,
             str(r.drift_count),
-            f"[{color}]{sev.upper()}[/{color}]" if r.has_drift else "—",
-            ", ".join(r.sources)[:40] or "—",
+            f"[{color}]{sev.upper()}[/{color}]" if r.has_drift else "ג€”",
+            ", ".join(r.sources)[:40] or "ג€”",
         )
     console.print(tbl)
 
 
-# ── stats ─────────────────────────────────────────────────────────────────────
+# ג”€ג”€ stats ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
 @cli.command()
-@click.option("--db",     default="drift_history.db", show_default=True)
+@click.option("--db",     default="drift_history.json", show_default=True)
 @click.option("--output", type=click.Choice(["table", "json"]), default="table", show_default=True)
 def stats(db, output):
     \"\"\"Show aggregate drift statistics across all recorded runs.\"\"\"
@@ -220,10 +220,10 @@ def stats(db, output):
     console.print()
 
 
-# ── prune ─────────────────────────────────────────────────────────────────────
+# ג”€ג”€ prune ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
 @cli.command()
-@click.option("--db",   default="drift_history.db", show_default=True)
+@click.option("--db",   default="drift_history.json", show_default=True)
 @click.option("--keep", default=500, show_default=True, type=int,
               help="Number of most recent runs to keep")
 @click.confirmation_option(prompt="This will permanently delete old runs. Continue?")
@@ -234,7 +234,7 @@ def prune(db, keep):
     console.print(f"[green]Pruned {deleted} run(s). Kept most recent {keep}.[/green]")
 
 
-# ── init (wizard) ─────────────────────────────────────────────────────────────
+# ג”€ג”€ init (wizard) ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
 @cli.command("init")
 @click.option("--output", default="config/detector.toml",
@@ -242,8 +242,8 @@ def prune(db, keep):
 @click.option("--force",  is_flag=True, default=False,
               help="Overwrite existing config without prompting")
 def init_wizard(output, force):
-    \"\"\"Interactive wizard — generates a detector.toml from prompted answers.\"\"\"
-    console.print("\n[bold cyan]Secret Drift Detector — Setup Wizard[/bold cyan]\n")
+    \"\"\"Interactive wizard ג€” generates a detector.toml from prompted answers.\"\"\"
+    console.print("\n[bold cyan]Secret Drift Detector ג€” Setup Wizard[/bold cyan]\n")
 
     out_path = Path(output)
     if out_path.exists() and not force:
@@ -253,7 +253,7 @@ def init_wizard(output, force):
 
     console.print("[bold]Agent settings[/bold]")
     interval   = Prompt.ask("  Poll interval (seconds)", default="60")
-    db_path    = Prompt.ask("  SQLite database path",    default="drift_history.db")
+    db_path    = Prompt.ask("  JSON database path",    default="drift_history.json")
     fail_drift = Confirm.ask("  Exit with code 1 when drift is found?", default=True)
     alert_extra = Confirm.ask("  Alert on extra runtime keys?", default=False)
     enable_entropy = Confirm.ask("  Enable weak-value entropy scanning?", default=True)
@@ -307,7 +307,7 @@ def init_wizard(output, force):
     console.print("\n[bold]Runtime target[/bold]")
     tgt_type = Prompt.ask(
         "  Target type",
-        choices=["local_env", "docker", "proc", "k8s_exec"],
+        choices=["local_env", "docker", "proc", "k8s_exec", "http_introspect"],
         default="local_env",
     )
 
@@ -338,7 +338,7 @@ def init_wizard(output, force):
             alert_lines.append(f'mention = "{mention}"')
 
     lines = [
-        "# detector.toml — generated by detector init",
+        "# detector.toml ג€” generated by detector init",
         "",
         "[agent]",
         f"interval_seconds = {interval}",
@@ -358,11 +358,11 @@ def init_wizard(output, force):
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(toml_text, encoding="utf-8")
-    console.print(f"\n[bold green]✔ Config written to {output}[/bold green]")
+    console.print(f"\n[bold green]ג” Config written to {output}[/bold green]")
     console.print(f"  Run [cyan]detector check --config {output}[/cyan] to verify connectivity.\n")
 
 
-# ── simulate ──────────────────────────────────────────────────────────────────
+# ג”€ג”€ simulate ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
 @cli.command()
 @click.option("--config",       default="config/detector.toml", show_default=True)
@@ -396,24 +396,24 @@ def simulate(config, delete, change, add, weak, output):
 
         for key in delete:
             actual_hashed.pop(key, None)
-            console.print(f"  [dim]→ deleted '{key}' from runtime snapshot[/dim]")
+            console.print(f"  [dim]ג†’ deleted '{key}' from runtime snapshot[/dim]")
 
         for key in change:
             actual_hashed[key] = _hash(_secrets.token_hex(16))
-            console.print(f"  [dim]→ changed value of '{key}' in runtime snapshot[/dim]")
+            console.print(f"  [dim]ג†’ changed value of '{key}' in runtime snapshot[/dim]")
 
         for kv in add:
             if "=" in kv:
                 k, v = kv.split("=", 1)
                 expected[k] = _hash(v)
-                console.print(f"  [dim]→ added '{k}' to expected snapshot[/dim]")
+                console.print(f"  [dim]ג†’ added '{k}' to expected snapshot[/dim]")
 
         for kv in weak:
             if "=" in kv:
                 k, v = kv.split("=", 1)
                 actual_hashed[k]    = _hash(v)
                 actual_plaintext[k] = v
-                console.print(f"  [dim]→ injected weak value for '{k}' into runtime[/dim]")
+                console.print(f"  [dim]ג†’ injected weak value for '{k}' into runtime[/dim]")
 
         console.print()
 
@@ -429,16 +429,16 @@ def simulate(config, delete, change, add, weak, output):
         if output == "json":
             console.print_json(report.model_dump_json(indent=2))
         else:
-            console.print("[bold yellow]⚡ SIMULATION — no data written to database[/bold yellow]\n")
+            console.print("[bold yellow]ג¡ SIMULATION ג€” no data written to database[/bold yellow]\n")
             _render_table(report)
 
     asyncio.run(_run())
 
 
-# ── verify (audit chain) ──────────────────────────────────────────────────────
+# ג”€ג”€ verify (audit chain) ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
 @cli.command()
-@click.option("--db", default="drift_history.db", show_default=True)
+@click.option("--db", default="drift_history.json", show_default=True)
 @click.option("--limit", default=100, show_default=True, type=int,
               help="Number of most recent runs to verify")
 def verify(db, limit):
@@ -462,24 +462,24 @@ def verify(db, limit):
         ok = entry["chain_ok"]
         if not ok:
             all_ok = False
-        status = "[green]✔ OK[/green]" if ok else "[bold red]✖ BROKEN[/bold red]"
+        status = "[green]ג” OK[/green]" if ok else "[bold red]ג– BROKEN[/bold red]"
         tbl.add_row(
             str(entry["id"]),
             entry["timestamp"][:19].replace("T", " "),
             status,
-            (entry.get("stored_hash") or "—")[:16] + "…",
-            (entry.get("expected_hash") or "—")[:16] + "…",
+            (entry.get("stored_hash") or "ג€”")[:16] + "ג€¦",
+            (entry.get("expected_hash") or "ג€”")[:16] + "ג€¦",
         )
 
     console.print(tbl)
     if all_ok:
-        console.print(f"\n[bold green]✔ Chain intact across {len(runs)} run(s).[/bold green]\n")
+        console.print(f"\n[bold green]ג” Chain intact across {len(runs)} run(s).[/bold green]\n")
     else:
-        console.print(f"\n[bold red]✖ Chain violation detected — database may have been tampered with.[/bold red]\n")
+        console.print(f"\n[bold red]ג– Chain violation detected ג€” database may have been tampered with.[/bold red]\n")
         raise SystemExit(1)
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# ג”€ג”€ helpers ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
 def _parse_since(value: str) -> datetime:
     now = datetime.now(timezone.utc)
@@ -493,15 +493,13 @@ def _parse_since(value: str) -> datetime:
         raise ValueError(f"Invalid ISO datetime format: {value}")
 
 
-# ── scan (CI integration) ─────────────────────────────────────────────────────
+# ג”€ג”€ scan (CI integration) ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 @cli.command()
 @click.option("--config", default="config/detector.toml")
 @click.option("--ci", is_flag=True)
 @click.option("--fail-on-drift", is_flag=True)
 def scan(config, ci, fail_on_drift):
     \"\"\"Scan for drift (designed for CI/CD pipelines).\"\"\"
-    import asyncio
-    from detector.agent import Agent
     async def _run():
         agent = Agent.from_config(config)
         report = await agent.run_once()
@@ -511,3 +509,4 @@ def scan(config, ci, fail_on_drift):
 
 if __name__ == "__main__":
     cli()
+

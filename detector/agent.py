@@ -1,4 +1,4 @@
-import time
+﻿import time
 import os
 from datetime import datetime, timezone
 import asyncio
@@ -22,6 +22,7 @@ from detector.diff.engine  import compute_drift
 from detector.diff.models  import DriftReport, DriftKind
 from detector.sources      import _hash
 from detector.storage.snapshot import Storage
+from detector.storage.postgres import PostgresStorage
 from detector.server       import metrics
 from detector.alerts.slack     import SlackAlerter
 from detector.alerts.pagerduty import PagerDutyAlerter
@@ -40,7 +41,10 @@ class Agent:
         self.sources  = []
         self.targets  = []
         self.alerters = []
-        self.storage  = Storage(db_path=config.agent.db_path)
+                if hasattr(config.agent, 'db_uri') and config.agent.db_uri:
+            self.storage = PostgresStorage(connection_string=config.agent.db_uri)
+        else:
+            self.storage = Storage(db_path=config.agent.db_path)
         self.remediation = RemediationManager(
             enabled=config.remediation.enabled if hasattr(config, 'remediation') else False,
             script=config.remediation.script if hasattr(config, 'remediation') and hasattr(config.remediation, 'script') else None
@@ -222,6 +226,13 @@ class Agent:
                 *[alerter.send_alert(report) for alerter in self.alerters],
                 return_exceptions=True,
             )
+            
+            try:
+                from detector.server.app import ws_manager
+                # Broadcast drift report to all connected WebSocket UI clients
+                asyncio.create_task(ws_manager.broadcast(report.model_dump_json()))
+            except Exception:
+                pass
             for res, alerter in zip(alert_res, self.alerters):
                 if isinstance(res, Exception):
                     log.error("alerter_failed", alerter=alerter.__class__.__name__, error=str(res))
@@ -269,3 +280,4 @@ class Agent:
     @classmethod
     def from_config(cls, config_path: str) -> "Agent":
         return cls(DetectorConfig.load_from_file(config_path))
+

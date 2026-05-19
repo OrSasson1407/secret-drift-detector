@@ -11,3 +11,4 @@ The Secret Drift Detector has been upgraded from a localized script to a distrib
 
 ## Deployment
 Agents can be deployed statelessly as CronJobs or DaemonSets in Kubernetes, relying on the central PostgreSQL database for state management and historical tracking.
+

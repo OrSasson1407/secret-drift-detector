@@ -48,3 +48,5 @@ Thumbs.db
 
 # Prevent committing db files
 drift_history.db
+
+test_db_temp.json
